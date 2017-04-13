@@ -1,0 +1,18 @@
+Index: cairo-wgl-context.c
+===================================================================
+--- cairo-wgl-context.c	(revision 6265)
++++ cairo-wgl-context.c	(working copy)
+@@ -187,11 +187,11 @@
+     ctx->prev_dc = 0;
+     ctx->prev_rc = 0;
+ 
+-    status = _wgl_dummy_ctx (ctx);
++    /*status = _wgl_dummy_ctx (ctx);
+     if (unlikely (status)) {
+         free (ctx);
+         return _cairo_gl_context_create_in_error (status);
+-    }
++    }*/
+ 
+     ctx->base.acquire = _wgl_acquire;
+     ctx->base.release = _wgl_release;

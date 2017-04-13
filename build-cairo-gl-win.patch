@@ -1,0 +1,44 @@
+Index: Makefile.win32.common
+===================================================================
+--- Makefile.win32.common	(revision 6265)
++++ Makefile.win32.common	(working copy)
+@@ -26,7 +26,7 @@
+ PIXMAN_CFLAGS := -I$(top_srcdir)/../pixman/pixman
+ PIXMAN_LIBS := $(CUS_LIB_PATH)/pixman-1.lib
+ 
+-CAIRO_LIBS =  gdi32.lib msimg32.lib user32.lib
++CAIRO_LIBS =  gdi32.lib msimg32.lib user32.lib opengl32.lib "$(CUS_LIB_PATH)/glew32s.lib"
+ ifeq ($(CAIRO_HAS_PNG_FUNCTIONS),1)
+ LIBPNG_CFLAGS += -I$(top_srcdir)/../libpng/
+ CAIRO_LIBS +=  $(CUS_LIB_PATH)/libpng.lib
+@@ -41,7 +41,7 @@
+ DEFAULT_CFLAGS += -I. -I$(top_srcdir) -I$(top_srcdir)/src
+ DEFAULT_CFLAGS += $(PIXMAN_CFLAGS) $(LIBPNG_CFLAGS) $(ZLIB_CFLAGS) -D_USING_V110_SDK71_
+ 
+-CAIRO_CFLAGS = $(DEFAULT_CFLAGS) $(CFLAGS)
++CAIRO_CFLAGS = $(DEFAULT_CFLAGS) $(CFLAGS) -DGLEW_STATIC
+ 
+ DEFAULT_LDFLAGS = -nologo $(CFG_LDFLAGS)
+ DEFAULT_ARFLAGS = -nologo
+Index: Makefile.win32.features
+===================================================================
+--- Makefile.win32.features	(revision 6265)
++++ Makefile.win32.features	(working copy)
+@@ -17,7 +17,7 @@
+ CAIRO_HAS_DRM_SURFACE=0
+ CAIRO_HAS_GALLIUM_SURFACE=0
+ CAIRO_HAS_PNG_FUNCTIONS=1
+-CAIRO_HAS_GL_SURFACE=0
++CAIRO_HAS_GL_SURFACE=1
+ CAIRO_HAS_GLESV2_SURFACE=0
+ CAIRO_HAS_COGL_SURFACE=0
+ CAIRO_HAS_DIRECTFB_SURFACE=0
+@@ -24,7 +24,7 @@
+ CAIRO_HAS_VG_SURFACE=0
+ CAIRO_HAS_EGL_FUNCTIONS=0
+ CAIRO_HAS_GLX_FUNCTIONS=0
+-CAIRO_HAS_WGL_FUNCTIONS=0
++CAIRO_HAS_WGL_FUNCTIONS=1
+ CAIRO_HAS_SCRIPT_SURFACE=1
+ CAIRO_HAS_FT_FONT=0
+ CAIRO_HAS_FC_FONT=0

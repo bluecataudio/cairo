@@ -1,0 +1,64 @@
+Index: cairo-scaled-font.c
+===================================================================
+--- cairo-scaled-font.c	(revision 6223)
++++ cairo-scaled-font.c	(revision 6225)
+@@ -351,12 +351,13 @@
+ /* This defines the size of the holdover array ... that is, the number
+  * of scaled fonts we keep around even when not otherwise referenced
+  */
+-#define CAIRO_SCALED_FONT_MAX_HOLDOVERS 256
++#define CAIRO_SCALED_FONT_MAX_HOLDOVERS 0
++#define CAIRO_SCALED_FONT_MAX_HOLDOVERS_ARRAY_SIZE 1
+ 
+ typedef struct _cairo_scaled_font_map {
+     cairo_scaled_font_t *mru_scaled_font;
+     cairo_hash_table_t *hash_table;
+-    cairo_scaled_font_t *holdovers[CAIRO_SCALED_FONT_MAX_HOLDOVERS];
++    cairo_scaled_font_t *holdovers[CAIRO_SCALED_FONT_MAX_HOLDOVERS_ARRAY_SIZE];
+     int num_holdovers;
+ } cairo_scaled_font_map_t;
+ 
+@@ -1099,9 +1100,11 @@
+ 	     * held. */
+ 
+ 	    old = font_map->mru_scaled_font;
++#if CAIRO_SCALED_FONT_MAX_HOLDOVERS>0
+ 	    font_map->mru_scaled_font = scaled_font;
+ 	    /* increment reference count for the mru cache */
+ 	    _cairo_reference_count_inc (&scaled_font->ref_count);
++#endif
+ 	    /* and increment for the returned reference */
+ 	    _cairo_reference_count_inc (&scaled_font->ref_count);
+ 	    _cairo_scaled_font_map_unlock ();
+@@ -1175,8 +1178,10 @@
+ 				       &scaled_font->hash_entry);
+     if (likely (status == CAIRO_STATUS_SUCCESS)) {
+ 	old = font_map->mru_scaled_font;
++#if CAIRO_SCALED_FONT_MAX_HOLDOVERS>0
+ 	font_map->mru_scaled_font = scaled_font;
+ 	_cairo_reference_count_inc (&scaled_font->ref_count);
++#endif
+     }
+ 
+     _cairo_scaled_font_map_unlock ();
+@@ -1335,7 +1340,7 @@
+ 	     * the reference count). To make room for it, we do actually
+ 	     * destroy the least-recently-used holdover.
+ 	     */
+-
++        #if CAIRO_SCALED_FONT_MAX_HOLDOVERS>0
+ 	    if (font_map->num_holdovers == CAIRO_SCALED_FONT_MAX_HOLDOVERS) {
+ 		lru = font_map->holdovers[0];
+ 		assert (! CAIRO_REFERENCE_COUNT_HAS_REFERENCE (&lru->ref_count));
+@@ -1351,6 +1356,11 @@
+ 
+ 	    font_map->holdovers[font_map->num_holdovers++] = scaled_font;
+ 	    scaled_font->holdover = TRUE;
++#else
++        lru = scaled_font;
++        _cairo_hash_table_remove (font_map->hash_table,
++					  &lru->hash_entry);
++#endif
+ 	} else
+ 	    lru = scaled_font;
+     }

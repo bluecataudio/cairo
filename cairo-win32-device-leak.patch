@@ -1,0 +1,49 @@
+Index: cairo-debug.c
+===================================================================
+--- cairo-debug.c	(revision 6222)
++++ cairo-debug.c	(working copy)
+@@ -89,7 +89,9 @@
+ #if CAIRO_HAS_DRM_SURFACE
+     _cairo_drm_device_reset_static_data ();
+ #endif
+-
++#if CAIRO_HAS_WIN32_SURFACE
++    _cairo_win32_device_reset_static_data ();
++#endif
+     _cairo_default_context_reset_static_data ();
+ 
+ #if CAIRO_HAS_COGL_SURFACE
+Index: cairoint.h
+===================================================================
+--- cairoint.h	(revision 6222)
++++ cairoint.h	(working copy)
+@@ -442,6 +442,11 @@
+ cairo_private void
+ _cairo_win32_font_reset_static_data (void);
+ 
++#if CAIRO_HAS_WIN32_SURFACE
++cairo_private void
++_cairo_win32_device_reset_static_data (void);
++#endif
++
+ #if CAIRO_HAS_COGL_SURFACE
+ void
+ _cairo_cogl_context_reset_static_data (void);
+Index: win32/cairo-win32-device.c
+===================================================================
+--- win32/cairo-win32-device.c	(revision 6222)
++++ win32/cairo-win32-device.c	(working copy)
+@@ -187,3 +187,12 @@
+ 
+     return flags;
+ }
++
++void _cairo_win32_device_reset_static_data (void)
++{
++     if (__cairo_win32_device != NULL) {
++	cairo_device_t *device = __cairo_win32_device;
++	__cairo_win32_device = NULL;
++	cairo_device_destroy (device);
++    }
++}
+\ No newline at end of file

@@ -1,0 +1,13 @@
+Index: cairo-win32-private.h
+===================================================================
+--- cairo-win32-private.h	(revision 6215)
++++ cairo-win32-private.h	(working copy)
+@@ -51,7 +51,7 @@
+ #define SB_NONE 0
+ #endif
+ 
+-#define WIN32_FONT_LOGICAL_SCALE 32
++#define WIN32_FONT_LOGICAL_SCALE 1
+ 
+ /* Surface DC flag values */
+ enum {
