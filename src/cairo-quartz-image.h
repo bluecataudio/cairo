@@ -1,6 +1,6 @@
 /* cairo - a vector graphics library with display and print output
  *
- * Copyright © 2008 Mozilla Corporation
+ * Copyright ï¿½ 2008 Mozilla Corporation
  *
  * This library is free software; you can redistribute it and/or
  * modify it either under the terms of the GNU Lesser General Public
@@ -45,7 +45,7 @@
 CAIRO_BEGIN_DECLS
 
 cairo_public cairo_surface_t *
-cairo_quartz_image_surface_create (cairo_surface_t *image_surface);
+cairo_quartz_image_surface_create (cairo_surface_t *image_surface,CGColorSpaceRef colorSpace);
 
 cairo_public cairo_surface_t *
 cairo_quartz_image_surface_get_image (cairo_surface_t *surface);

@@ -1287,17 +1287,20 @@ glitter_scan_converter_reset(
 			     int xmax, int ymax)
 {
     glitter_status_t status;
+    int max_num_spans;
 
     converter->xmin = 0; converter->xmax = 0;
     converter->ymin = 0; converter->ymax = 0;
 
-    if (xmax - xmin > ARRAY_LENGTH(converter->spans_embedded)) {
-	converter->spans = _cairo_malloc_ab (xmax - xmin,
-					     sizeof (cairo_half_open_span_t));
-	if (unlikely (converter->spans == NULL))
-	    return _cairo_error (CAIRO_STATUS_NO_MEMORY);
+    max_num_spans = xmax - xmin + 1;
+
+    if (max_num_spans > ARRAY_LENGTH(converter->spans_embedded)) {
+        converter->spans = _cairo_malloc_ab (max_num_spans,
+            sizeof (cairo_half_open_span_t));
+        if (unlikely (converter->spans == NULL))
+            return _cairo_error (CAIRO_STATUS_NO_MEMORY);
     } else
-	converter->spans = converter->spans_embedded;
+        converter->spans = converter->spans_embedded;
 
     xmin = int_to_grid_scaled_x(xmin);
     ymin = int_to_grid_scaled_y(ymin);
