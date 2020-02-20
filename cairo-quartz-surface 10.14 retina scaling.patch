@@ -1,0 +1,39 @@
+Index: cairo-quartz-surface.c
+===================================================================
+--- cairo-quartz-surface.c	
++++ cairo-quartz-surface.c	(fix)
+@@ -939,7 +939,7 @@
+ 
+     CGImageRef image;
+     CGRect pbounds;
+-    CGAffineTransform ptransform, stransform;
++    CGAffineTransform ptransform, stransform, tmptransform;
+     CGPatternCallbacks cb = { 0,
+ 			      SurfacePatternDrawFunc,
+ 			      SurfacePatternReleaseInfoFunc };
+@@ -1007,9 +1007,23 @@
+      * incoming cairo pattern matrix is relative to the upper left.
+      * So we take the pattern matrix and the original context matrix,
+      * which gives us the correct base translation/y flip.
++     * WARNING: On Retina surfaces, additional scaling is applied (visible or not in the
++     * original matrix), so the device transform must be set accordingly.
+      */
+-    ptransform = CGAffineTransformConcat (stransform, dest->cgContextBaseCTM);
+-
++    tmptransform=dest->cgContextBaseCTM;
++    /* normalize original matrix to match native target coordinates system before scaling (1,1) */
++    tmptransform.a=1.0;
++    tmptransform.d=-1.0;
++    if(dest->cgContextBaseCTM.a!=0)
++        tmptransform.tx/=fabs(dest->cgContextBaseCTM.a);
++    if(dest->cgContextBaseCTM.d!=0)
++        tmptransform.ty/=fabs(dest->cgContextBaseCTM.d);
++    ptransform = CGAffineTransformConcat (stransform, tmptransform);
++    
++    /* apply actual scaling, defined by the device transform */
++    tmptransform=CGAffineTransformMakeScale(dest->base.device_transform_inverse.xx,dest->base.device_transform_inverse.yy);
++    ptransform=CGAffineTransformConcat(ptransform,tmptransform);
++    
+ #ifdef QUARTZ_DEBUG
+     ND ((stderr, "  pbounds: %f %f %f %f\n", pbounds.origin.x, pbounds.origin.y, pbounds.size.width, pbounds.size.height));
+     ND ((stderr, "  pattern xform: t: %f %f xx: %f xy: %f yx: %f yy: %f\n", ptransform.tx, ptransform.ty, ptransform.a, ptransform.b, ptransform.c, ptransform.d));
