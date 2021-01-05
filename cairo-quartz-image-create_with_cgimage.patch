@@ -1,0 +1,101 @@
+Index: cairo-quartz-image-surface.c
+===================================================================
+--- cairo-quartz-image-surface.c	(old)
++++ cairo-quartz-image-surface.c	(new)
+@@ -161,6 +161,10 @@
+     if (flags)
+ 	return CAIRO_STATUS_SUCCESS;
+ 
++    // no need to copy data if already pointing to the same buffer
++    if(surface->noImageCopy)
++        return CAIRO_STATUS_SUCCESS;
++    
+     if(oldImage)
+         colorSpace=CGImageGetColorSpace(oldImage);
+     /* XXX only flush if the image has been modified. */
+@@ -299,6 +303,59 @@
+     _cairo_quartz_image_surface_glyphs,
+ };
+ 
++cairo_surface_t *
++cairo_quartz_image_surface_create_with_cgimage (cairo_surface_t *surface,CGImageRef image)
++{
++    cairo_quartz_image_surface_t *qisurf;
++    
++    
++    cairo_image_surface_t *image_surface;
++    int width, height, stride;
++    cairo_format_t format;
++    
++    if (surface->status)
++        return surface;
++    
++    if (! _cairo_surface_is_image (surface))
++        return SURFACE_ERROR_TYPE_MISMATCH;
++    
++    image_surface = (cairo_image_surface_t*) surface;
++    width = image_surface->width;
++    height = image_surface->height;
++    stride = image_surface->stride;
++    format = image_surface->format;
++    
++    if (!_cairo_quartz_verify_surface_size(width, height))
++        return SURFACE_ERROR_INVALID_SIZE;
++    
++    if (width == 0 || height == 0)
++        return SURFACE_ERROR_INVALID_SIZE;
++    
++    if (format != CAIRO_FORMAT_ARGB32 && format != CAIRO_FORMAT_RGB24)
++        return SURFACE_ERROR_INVALID_FORMAT;
++    
++    qisurf = _cairo_malloc (sizeof(cairo_quartz_image_surface_t));
++    if (qisurf == NULL)
++        return SURFACE_ERROR_NO_MEMORY;
++    
++    memset (qisurf, 0, sizeof(cairo_quartz_image_surface_t));
++    
++    _cairo_surface_init (&qisurf->base,
++                         &cairo_quartz_image_surface_backend,
++                         NULL, /* device */
++                         _cairo_content_from_format (format));
++    
++    qisurf->width = width;
++    qisurf->height = height;
++    
++    qisurf->image = image;
++    qisurf->imageSurface = image_surface;
++    qisurf->noImageCopy = true;
++    // reference image surface - will be released in surface_destroy
++    cairo_surface_reference (surface);
++    
++    return &qisurf->base;
++}
+ /**
+  * cairo_quartz_image_surface_create:
+  * @image_surface: a cairo image surface to wrap with a quartz image surface
+Index: cairo-quartz-image.h
+===================================================================
+--- cairo-quartz-image.h	(revision 10128)
++++ cairo-quartz-image.h	(revision 10141)
+@@ -45,6 +45,9 @@
+ CAIRO_BEGIN_DECLS
+ 
+ cairo_public cairo_surface_t *
++cairo_quartz_image_surface_create_with_cgimage (cairo_surface_t *image_surface,CGImageRef image);
++
++cairo_public cairo_surface_t *
+ cairo_quartz_image_surface_create (cairo_surface_t *image_surface,CGColorSpaceRef colorSpace);
+ 
+ cairo_public cairo_surface_t *
+Index: cairo-quartz-private.h
+===================================================================
+--- cairo-quartz-private.h	(revision 10128)
++++ cairo-quartz-private.h	(revision 10141)
+@@ -78,6 +78,7 @@
+ 
+     CGImageRef image;
+     cairo_image_surface_t *imageSurface;
++    bool noImageCopy;
+ } cairo_quartz_image_surface_t;
+ 
+ cairo_private cairo_bool_t

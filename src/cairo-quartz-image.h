@@ -45,6 +45,9 @@
 CAIRO_BEGIN_DECLS
 
 cairo_public cairo_surface_t *
+cairo_quartz_image_surface_create_with_cgimage (cairo_surface_t *image_surface,CGImageRef image);
+
+cairo_public cairo_surface_t *
 cairo_quartz_image_surface_create (cairo_surface_t *image_surface,CGColorSpaceRef colorSpace);
 
 cairo_public cairo_surface_t *

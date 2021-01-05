@@ -50,10 +50,9 @@
 #define SURFACE_ERROR_INVALID_FORMAT (_cairo_surface_create_in_error(_cairo_error(CAIRO_STATUS_INVALID_FORMAT)))
 
 static void
-DataProviderReleaseCallback (void *info, const void *data, size_t size)
+DataProviderReleaseCallback (void *image_info, const void *data, size_t size)
 {
-    cairo_surface_t *surface = (cairo_surface_t *) info;
-    cairo_surface_destroy (surface);
+    free (image_info);
 }
 
 static CGColorSpaceRef _cairo_quartz_image_surface_get_color_space(void *asurface)
@@ -97,9 +96,8 @@ _cairo_quartz_image_surface_finish (void *asurface)
 {
     cairo_quartz_image_surface_t *surface = (cairo_quartz_image_surface_t *) asurface;
 
-    /* the imageSurface will be destroyed by the data provider's release callback */
     CGImageRelease (surface->image);
-
+    cairo_surface_destroy (surface->imageSurface);
     return CAIRO_STATUS_SUCCESS;
 }
 
@@ -158,25 +156,35 @@ _cairo_quartz_image_surface_flush (void *asurface,
     CGImageRef newImage = NULL;
     CGColorSpaceRef colorSpace = NULL;
     
+    void *image_data;
+    const unsigned int size = surface->imageSurface->height * surface->imageSurface->stride;
     if (flags)
 	return CAIRO_STATUS_SUCCESS;
 
+    // no need to copy data if already pointing to the same buffer
+    if(surface->noImageCopy)
+        return CAIRO_STATUS_SUCCESS;
+    
     if(oldImage)
         colorSpace=CGImageGetColorSpace(oldImage);
     /* XXX only flush if the image has been modified. */
 
-    /* To be released by the ReleaseCallback */
-    cairo_surface_reference ((cairo_surface_t*) surface->imageSurface);
+    image_data = _cairo_malloc_ab ( surface->imageSurface->height,
+				    surface->imageSurface->stride);
+    if (unlikely (!image_data))
+	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
 
+    memcpy (image_data, surface->imageSurface->data,
+	    surface->imageSurface->height * surface->imageSurface->stride);
     newImage = CairoQuartzCreateCGImage (surface->imageSurface->format,
 					 surface->imageSurface->width,
 					 surface->imageSurface->height,
 					 surface->imageSurface->stride,
-					 surface->imageSurface->data,
+					 image_data,
 					 TRUE,
 					 colorSpace,
 					 DataProviderReleaseCallback,
-					 surface->imageSurface);
+					 image_data);
 
     surface->image = newImage;
     CGImageRelease (oldImage);
@@ -295,6 +303,59 @@ static const cairo_surface_backend_t cairo_quartz_image_surface_backend = {
     _cairo_quartz_image_surface_glyphs,
 };
 
+cairo_surface_t *
+cairo_quartz_image_surface_create_with_cgimage (cairo_surface_t *surface,CGImageRef image)
+{
+    cairo_quartz_image_surface_t *qisurf;
+    
+    
+    cairo_image_surface_t *image_surface;
+    int width, height, stride;
+    cairo_format_t format;
+    
+    if (surface->status)
+        return surface;
+    
+    if (! _cairo_surface_is_image (surface))
+        return SURFACE_ERROR_TYPE_MISMATCH;
+    
+    image_surface = (cairo_image_surface_t*) surface;
+    width = image_surface->width;
+    height = image_surface->height;
+    stride = image_surface->stride;
+    format = image_surface->format;
+    
+    if (!_cairo_quartz_verify_surface_size(width, height))
+        return SURFACE_ERROR_INVALID_SIZE;
+    
+    if (width == 0 || height == 0)
+        return SURFACE_ERROR_INVALID_SIZE;
+    
+    if (format != CAIRO_FORMAT_ARGB32 && format != CAIRO_FORMAT_RGB24)
+        return SURFACE_ERROR_INVALID_FORMAT;
+    
+    qisurf = _cairo_malloc (sizeof(cairo_quartz_image_surface_t));
+    if (qisurf == NULL)
+        return SURFACE_ERROR_NO_MEMORY;
+    
+    memset (qisurf, 0, sizeof(cairo_quartz_image_surface_t));
+    
+    _cairo_surface_init (&qisurf->base,
+                         &cairo_quartz_image_surface_backend,
+                         NULL, /* device */
+                         _cairo_content_from_format (format));
+    
+    qisurf->width = width;
+    qisurf->height = height;
+    
+    qisurf->image = image;
+    qisurf->imageSurface = image_surface;
+    qisurf->noImageCopy = true;
+    // reference image surface - will be released in surface_destroy
+    cairo_surface_reference (surface);
+    
+    return &qisurf->base;
+}
 /**
  * cairo_quartz_image_surface_create:
  * @image_surface: a cairo image surface to wrap with a quartz image surface
@@ -321,7 +382,7 @@ cairo_quartz_image_surface_create (cairo_surface_t *surface,CGColorSpaceRef colo
     cairo_image_surface_t *image_surface;
     int width, height, stride;
     cairo_format_t format;
-    unsigned char *data;
+    void *image_data;
 
     if (surface->status)
 	return surface;
@@ -334,7 +395,6 @@ cairo_quartz_image_surface_create (cairo_surface_t *surface,CGColorSpaceRef colo
     height = image_surface->height;
     stride = image_surface->stride;
     format = image_surface->format;
-    data = image_surface->data;
 
     if (!_cairo_quartz_verify_surface_size(width, height))
 	return SURFACE_ERROR_INVALID_SIZE;
@@ -345,26 +405,25 @@ cairo_quartz_image_surface_create (cairo_surface_t *surface,CGColorSpaceRef colo
     if (format != CAIRO_FORMAT_ARGB32 && format != CAIRO_FORMAT_RGB24)
 	return SURFACE_ERROR_INVALID_FORMAT;
 
-    qisurf = malloc(sizeof(cairo_quartz_image_surface_t));
+    qisurf = _cairo_malloc (sizeof(cairo_quartz_image_surface_t));
     if (qisurf == NULL)
 	return SURFACE_ERROR_NO_MEMORY;
 
     memset (qisurf, 0, sizeof(cairo_quartz_image_surface_t));
 
-    /* In case the create_cgimage fails, this ref will
-     * be released via the callback (which will be called in
-     * case of failure.)
-     */
-    cairo_surface_reference (surface);
+    image_data = _cairo_malloc_ab (height, stride);
+    if (unlikely (!image_data))
+	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
 
+    memcpy (image_data, image_surface->data, height * stride);
     image = CairoQuartzCreateCGImage (format,
 				      width, height,
 				      stride,
-				      data,
+				      image_data,
 				      TRUE,
 				      colorSpace,
 				      DataProviderReleaseCallback,
-				      image_surface);
+				      image_data);
 
     if (!image) {
 	free (qisurf);
@@ -381,6 +440,8 @@ cairo_quartz_image_surface_create (cairo_surface_t *surface,CGColorSpaceRef colo
 
     qisurf->image = image;
     qisurf->imageSurface = image_surface;
+    // reference image surface - will be released in surface_destroy 
+    cairo_surface_reference (surface);
 
     return &qisurf->base;
 }

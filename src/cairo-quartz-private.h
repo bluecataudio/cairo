@@ -78,6 +78,7 @@ typedef struct cairo_quartz_image_surface {
 
     CGImageRef image;
     cairo_image_surface_t *imageSurface;
+    bool noImageCopy;
 } cairo_quartz_image_surface_t;
 
 cairo_private cairo_bool_t
