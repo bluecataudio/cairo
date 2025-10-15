@@ -42,7 +42,7 @@
 #include <zlib.h>
 
 #if HAVE_LZO
-#include <lzo/lzo2a.h>
+#include <lzo2a.h>
 #endif
 
 #define CHUNK_SIZE 32768
@@ -833,6 +833,7 @@ csi_file_getc (csi_file_t *file)
 	    file->rem--;
 	} else {
 	    file->rem = fread (file->bp = file->data, 1, CHUNK_SIZE, file->src);
+	    /* fall through */
     case BYTES:
 	    if (_csi_likely (file->rem)) {
 		c = *file->bp++;

@@ -1,0 +1,421 @@
+Index: cairo-quartz.h
+===================================================================
+--- cairo-quartz.h	(revision 12874)
++++ cairo-quartz.h	(revision 12875)
+@@ -54,6 +54,12 @@
+                                             unsigned int width,
+                                             unsigned int height);
+ 
++cairo_public cairo_surface_t *
++cairo_quartz_surface_create_for_cg_context_with_color_space (CGContextRef cgContext,
++                                            unsigned int width,
++                                            unsigned int height,
++                                            CGColorSpaceRef colorSpace);
++
+ cairo_public CGContextRef
+ cairo_quartz_surface_get_cg_context (cairo_surface_t *surface);
+ 
+Index: cairo-quartz-surface.c
+===================================================================
+--- cairo-quartz-surface.c	(revision 12874)
++++ cairo-quartz-surface.c	(revision 12875)
+@@ -160,7 +160,8 @@
+ _cairo_quartz_surface_create_internal (CGContextRef cgContext,
+ 				       cairo_content_t content,
+ 				       unsigned int width,
+-				       unsigned int height);
++				       unsigned int height,
++                       CGColorSpaceRef colorSpace);
+ 
+ CGColorSpaceRef
+ _cairo_quartz_create_color_space (CGContextRef context)
+@@ -170,9 +171,6 @@
+ 
+     if (context)
+     {
+-        if (CGBitmapContextGetBitsPerPixel (context) < 24)
+-            return 0;
+-
+         quartz_ensure_symbols();
+         cgtype = CGContextGetTypePtr (context);
+         switch (cgtype)
+@@ -830,7 +828,7 @@
+ 
+     CGImageRef image;
+     CGRect pbounds;
+-    CGAffineTransform ptransform, stransform;
++    CGAffineTransform ptransform, stransform,tmptransform;
+     CGPatternCallbacks cb = { 0,
+ 			      SurfacePatternDrawFunc,
+ 			      SurfacePatternReleaseInfoFunc };
+@@ -892,18 +890,18 @@
+      * WARNING: On Retina surfaces, additional scaling is applied (visible or not in the
+      * original matrix), so the device transform must be set accordingly.
+      */
+-    tmptransform=dest->cgContextBaseCTM;
++    tmptransform=surface->cgContextBaseCTM;
+     /* normalize original matrix to match native target coordinates system before scaling (1,1) */
+     tmptransform.a=1.0;
+     tmptransform.d=-1.0;
+-    if(dest->cgContextBaseCTM.a!=0)
+-        tmptransform.tx/=fabs(dest->cgContextBaseCTM.a);
+-    if(dest->cgContextBaseCTM.d!=0)
+-        tmptransform.ty/=fabs(dest->cgContextBaseCTM.d);
++    if(surface->cgContextBaseCTM.a!=0)
++        tmptransform.tx/=fabs(surface->cgContextBaseCTM.a);
++    if(surface->cgContextBaseCTM.d!=0)
++        tmptransform.ty/=fabs(surface->cgContextBaseCTM.d);
+     ptransform = CGAffineTransformConcat (stransform, tmptransform);
+     
+     /* apply actual scaling, defined by the device transform */
+-    tmptransform=CGAffineTransformMakeScale(dest->base.device_transform_inverse.xx,dest->base.device_transform_inverse.yy);
++    tmptransform=CGAffineTransformMakeScale(surface->base.device_transform_inverse.xx,surface->base.device_transform_inverse.yy);
+     ptransform=CGAffineTransformConcat(ptransform,tmptransform);
+     
+ #ifdef QUARTZ_DEBUG
+@@ -953,6 +951,8 @@
+     /* Temporary destination for unbounded operations */
+     CGLayerRef layer;
+     CGRect clipRect;
++    
++    CGColorSpaceRef cgColorSpace;
+ } cairo_quartz_drawing_state_t;
+ 
+ static cairo_int_status_t
+@@ -973,7 +973,6 @@
+     CGColorSpaceRef patternSpace;
+     CGPatternRef cgpat = NULL;
+     cairo_int_status_t status;
+-    CGColorRef black = _cairo_quartz_black (_cairo_quartz_create_color_space (state->cgDrawContext));
+ 
+     _cairo_surface_get_extents (&surface->base, &extents);
+ 
+@@ -985,6 +984,7 @@
+ 	    _cairo_quartz_cairo_matrix_to_quartz (&m, &state->transform);
+ 	    state->rect = CGRectMake (0, 0, quartz_surf->extents.width, quartz_surf->extents.height);
+ 	    state->layer = quartz_surf->cgLayer;
++        CGLayerRetain (state->layer); // Will be released by _cairo_quartz_teardown_state
+ 	    state->action = DO_LAYER;
+ 	    return CAIRO_STATUS_SUCCESS;
+ 	}
+@@ -1029,8 +1029,10 @@
+ 				   -state->clipRect.origin.y);
+ 	}
+ 
++    CGColorRef black =_cairo_quartz_black (CGColorSpaceRetain(state->cgColorSpace));
+ 	CGContextSetFillColorWithColor (state->cgDrawContext, black);
+-
++    CGColorRelease (black);
++        
+ 	state->rect = CGRectMake (0, 0, pattern_extents.width, pattern_extents.height);
+ 	state->action = DO_IMAGE;
+ 	return CAIRO_STATUS_SUCCESS;
+@@ -1068,7 +1070,6 @@
+     CGContextSetPatternPhase (state->cgDrawContext, CGSizeMake (0, 0));
+ 
+     CGPatternRelease (cgpat);
+-    CGColorRelease (black);
+ 
+     state->action = DO_DIRECT;
+     return CAIRO_STATUS_SUCCESS;
+@@ -1108,7 +1109,7 @@
+     if (unlikely (gradFunc == NULL))
+ 	return CAIRO_INT_STATUS_UNSUPPORTED;
+ 
+-    rgb = _cairo_quartz_create_color_space (NULL);
++    rgb = state->cgColorSpace;
+ 
+     if (gradient->base.type == CAIRO_PATTERN_TYPE_LINEAR) {
+ 	state->shading = CGShadingCreateAxial (rgb,
+@@ -1130,7 +1131,7 @@
+ 						extend, extend);
+     }
+ 
+-    CGColorSpaceRelease (rgb);
++    //CGColorSpaceRelease (rgb);
+     CGFunctionRelease (gradFunc);
+ 
+     state->action = DO_SHADING;
+@@ -1153,8 +1154,9 @@
+     state->shading = NULL;
+     state->cgDrawContext = NULL;
+     state->cgMaskContext = NULL;
+-    state->layer = NULL;
+-
++    state->cgColorSpace = surface->cgColorSpace;
++    CGColorSpaceRetain(surface->cgColorSpace);
++    
+     status = _cairo_surface_clipper_set_clip (&surface->clipper, clip);
+     if (unlikely (status))
+ 	return status;
+@@ -1179,7 +1181,7 @@
+     state->filter = _cairo_quartz_filter_to_quartz (source->filter);
+ 
+     if (op == CAIRO_OPERATOR_CLEAR) {
+-	CGColorRef black = _cairo_quartz_black (_cairo_quartz_create_color_space (surface->cgContext));
++	CGColorRef black = _cairo_quartz_black (CGColorSpaceRetain(surface->cgColorSpace));
+ 	CGContextSetFillColorWithColor (state->cgDrawContext, black);
+ 
+ 	state->action = DO_DIRECT;
+@@ -1220,7 +1222,7 @@
+ 
+     if (source->type == CAIRO_PATTERN_TYPE_SOLID) {
+ 	cairo_solid_pattern_t *solid = (cairo_solid_pattern_t *) source;
+-	CGColorRef color = _cairo_quartz_create_cgcolor (_cairo_quartz_create_color_space (state->cgDrawContext),
++	CGColorRef color = _cairo_quartz_create_cgcolor (CGColorSpaceRetain(state->cgColorSpace),
+ 							 solid->color.red,
+ 							 solid->color.green,
+ 							 solid->color.blue,
+@@ -1278,6 +1280,8 @@
+ 
+     if (state->shading)
+ 	CGShadingRelease (state->shading);
++    if (state->cgColorSpace)
++    CGColorSpaceRelease (state->cgColorSpace);
+ }
+ 
+ static inline void
+@@ -1284,8 +1288,6 @@
+ _cairo_quartz_draw_cgcontext (cairo_quartz_drawing_state_t *state,
+ 			      cairo_operator_t op)
+ {
+-    CGColorSpaceRef cs = _cairo_quartz_create_color_space (state->cgDrawContext);
+-    CGColorRef transparent = _cairo_quartz_create_cgcolor (cs, 0.0, 0.0, 0.0, 0.0); //releases cs
+ 
+     if (! (op == CAIRO_OPERATOR_SOURCE &&
+ 	   state->cgDrawContext == state->cgMaskContext))
+@@ -1301,6 +1303,7 @@
+ 
+     CGContextAddRect (state->cgDrawContext, state->clipRect);
+ 
++    CGColorRef transparent = transparent=_cairo_quartz_create_cgcolor (CGColorSpaceRetain (state->cgColorSpace), 0.0, 0.0, 0.0, 0.0); //releases cs
+     CGContextSetFillColorWithColor (state->cgDrawContext, transparent);
+     CGContextEOFillPath (state->cgDrawContext);
+     CGColorRelease (transparent);
+@@ -1364,7 +1367,7 @@
+     bpp = CGBitmapContextGetBitsPerPixel (surface->cgContext);
+ 
+     // let's hope they don't add YUV under us
+-    colorspace = _cairo_quartz_create_color_space (surface->cgContext);
++    colorspace = CGColorSpaceRetain(surface->cgColorSpace);
+     color_comps = CGColorSpaceGetNumberOfComponents (colorspace);
+     CGColorSpaceRelease (colorspace);
+ 
+@@ -1443,7 +1446,11 @@
+ 	CGLayerRelease (surface->cgLayer);
+ 	surface->cgLayer = NULL;
+     }
+-
++    if (surface->cgColorSpace)
++    {
++    CGColorSpaceRelease (surface->cgColorSpace);
++    surface->cgColorSpace = NULL;
++    }
+     return CAIRO_STATUS_SUCCESS;
+ }
+ 
+@@ -1484,6 +1491,7 @@
+     CGAffineTransform xform;
+     CGContextRef context;
+     CGLayerRef layer;
++    CGColorSpaceRef colorSpace;
+     cairo_quartz_surface_t* new_surface;
+ 
+     if (surface->cgContext == NULL || surface->cgLayer != NULL)
+@@ -1497,19 +1505,22 @@
+ 					     CGSizeMake (width * xform.a,
+ 							 height * xform.d),
+ 					     NULL);
+-
++    colorSpace=surface->cgColorSpace;
+     context = CGLayerGetContext (layer);
+     CGContextTranslateCTM (context, 0.0, height);
+     CGContextScaleCTM (context, xform.a, -xform.d);
++    
+     new_surface = _cairo_quartz_surface_create_internal (context, content,
+-							 width, height);
++							 width, height,colorSpace);
+     if (unlikely (new_surface->base.status))
+     {
+ 	CGContextRelease (context);
+ 	CGLayerRelease (layer);
++    CGColorSpaceRelease (colorSpace);
+ 	return &new_surface->base;
+     }
+     new_surface->cgLayer = CGLayerRetain(layer);
++    CGColorSpaceRetain(colorSpace);
+     CGContextRetain(context);
+     new_surface->virtual_extents = surface->virtual_extents;
+ 
+@@ -2146,7 +2157,8 @@
+ _cairo_quartz_surface_create_internal (CGContextRef cgContext,
+ 				       cairo_content_t content,
+ 				       unsigned int width,
+-				       unsigned int height)
++				       unsigned int height,
++                       CGColorSpaceRef colorSpace)
+ {
+     cairo_quartz_surface_t *surface;
+ 
+@@ -2186,7 +2198,7 @@
+ 
+     surface->cgContext = cgContext;
+     surface->cgContextBaseCTM = CGContextGetCTM (cgContext);
+-
++    surface->cgColorSpace = colorSpace;
+     return surface;
+ }
+ 
+@@ -2219,15 +2231,29 @@
+ 
+ cairo_surface_t *
+ cairo_quartz_surface_create_for_cg_context (CGContextRef cgContext,
++                        unsigned int width,
++                        unsigned int height)
++{
++    CGColorSpaceRef colorSpace=_cairo_quartz_create_color_space(cgContext);
++    cairo_surface_t *surf=cairo_quartz_surface_create_for_cg_context_with_color_space(cgContext,width,height,colorSpace);
++    CGColorSpaceRelease(colorSpace);
++    return surf;
++}
++
++cairo_surface_t *
++cairo_quartz_surface_create_for_cg_context_with_color_space (CGContextRef cgContext,
+ 					    unsigned int width,
+-					    unsigned int height)
++					    unsigned int height,
++                        CGColorSpaceRef colorSpace)
+ {
+     cairo_quartz_surface_t *surf =
+ 	_cairo_quartz_surface_create_internal (cgContext, CAIRO_CONTENT_COLOR_ALPHA,
+-					       width, height);
++					       width, height,colorSpace);
+     if (likely (!surf->base.status))
+-	CGContextRetain (cgContext);
+-
++    {
++        CGContextRetain (cgContext);
++        CGColorSpaceRetain(colorSpace);
++    }
+     return &surf->base;
+ }
+ 
+@@ -2270,7 +2296,7 @@
+ 
+     if (width == 0 || height == 0) {
+ 	return &_cairo_quartz_surface_create_internal (NULL, _cairo_content_from_format (format),
+-						       width, height)->base;
++						       width, height,_cairo_quartz_create_color_space(NULL))->base;
+     }
+ 
+     if (format == CAIRO_FORMAT_ARGB32 ||
+@@ -2311,12 +2337,11 @@
+ 				 stride,
+ 				 cgColorspace,
+ 				 bitinfo);
+-    CGColorSpaceRelease (cgColorspace);
+ 
+     if (!cgc) {
+ 	if (imageData)
+ 	    free (imageData);
+-
++    CGColorSpaceRelease (cgColorspace);
+ 	return _cairo_surface_create_in_error (_cairo_error (CAIRO_STATUS_NO_MEMORY));
+     }
+ 
+@@ -2325,10 +2350,10 @@
+     CGContextScaleCTM (cgc, 1.0, -1.0);
+ 
+     surf = _cairo_quartz_surface_create_internal (cgc, _cairo_content_from_format (format),
+-						  width, height);
++						  width, height,cgColorspace);
+     if (surf->base.status) {
+ 	CGContextRelease (cgc);
+-
++    CGColorSpaceRelease (cgColorspace);
+ 	if (imageData)
+ 	    free (imageData);
+ 
+@@ -2389,6 +2414,43 @@
+     return surface->backend == &cairo_quartz_surface_backend;
+ }
+ 
++void CGDataProviderReleaseImage(void * info,const void *  data, size_t size)
++{
++    if(info!=NULL)
++    {
++        CGContextRef cgContext=(CGContextRef)info;
++        CGContextRelease(cgContext);
++    }
++}
++
++CGImageRef CGBitmapContextCreateImageNoCopy(CGContextRef cgContext,CGColorSpaceRef colorSpace)
++{
++   CGImageRef image=NULL;
++   if(cgContext!=NULL)
++   {
++       // get bitmap data and characteristics
++       void* bits=CGBitmapContextGetData(cgContext);
++       int width=CGBitmapContextGetWidth(cgContext);
++       int height=CGBitmapContextGetHeight(cgContext);
++       int nbBits=CGBitmapContextGetBitsPerPixel(cgContext);
++       CGBitmapInfo info= CGBitmapContextGetBitmapInfo (cgContext);
++       int nbBytesPerRow=CGBitmapContextGetBytesPerRow(cgContext);
++       int nbBitsPerComponent=CGBitmapContextGetBitsPerComponent(cgContext);
++       
++       // build data provider
++       CFRetain(cgContext);
++       CGDataProviderRef providerRef = CGDataProviderCreateWithData((void*)cgContext, bits,nbBytesPerRow*height, &CGDataProviderReleaseImage);
++       
++       image= CGImageCreate(width, height, nbBitsPerComponent, nbBits, nbBytesPerRow, colorSpace, info, providerRef, NULL, true, kCGRenderingIntentDefault);
++       
++       // cleanup
++       if(providerRef)
++           CGDataProviderRelease(providerRef);
++       
++   }
++   return image;
++}
++
+ cairo_surface_t*
+ _cairo_quartz_snapshot_create (cairo_surface_t *surface)
+ {
+@@ -2411,8 +2473,11 @@
+     _cairo_surface_init (&snapshot->base,
+ 			 &cairo_quartz_snapshot_backend,
+ 			 NULL, CAIRO_CONTENT_COLOR_ALPHA, FALSE);
+-///GJL TODO chqneg this to CGBitmapContextCreateImageInternal
+-    snapshot->image = CGBitmapContextCreateImage (cgContext);
++    /// Mod - do not create a copy of the bitmap when data is owned by Core Graphics
++    if(_cairo_surface_is_quartz_image(surface))
++        snapshot->image = CGBitmapContextCreateImage (cgContext);
++    else
++        snapshot->image = CGBitmapContextCreateImageNoCopy (cgContext,((cairo_quartz_surface_t*)surface)->cgColorSpace);
+     _cairo_surface_attach_snapshot (surface, &snapshot->base, NULL);
+     cairo_surface_destroy (&snapshot->base); // The surface has reffed the snapshot so we must unref it here.
+ 
+Index: cairo-quartz-private.h
+===================================================================
+--- cairo-quartz-private.h	(revision 12874)
++++ cairo-quartz-private.h	(revision 12875)
+@@ -75,6 +75,7 @@
+     cairo_rectangle_int_t extents;
+     cairo_rectangle_int_t virtual_extents;
+     CGLayerRef cgLayer;
++    CGColorSpaceRef cgColorSpace;
+ } cairo_quartz_surface_t;
+ 
+ typedef struct cairo_quartz_image_surface {
+Index: cairo-quartz-font.c
+===================================================================
+--- cairo-quartz-font.c	(revision 12874)
++++ cairo-quartz-font.c	(revision 12875)
+@@ -283,7 +283,7 @@
+     bbox = CTFontGetBoundingBox (ctFont);
+     fs_metrics.max_x_advance = CGRectGetMaxX(bbox);
+     fs_metrics.max_y_advance = 0.0;
+-    font->ctFont = CFRetain (ctFont);
++    font->ctFont = ctFont;
+     status = _cairo_scaled_font_set_metrics (&font->base, &fs_metrics);
+ #ifdef DEBUG
+     {

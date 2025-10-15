@@ -66,7 +66,7 @@ _cairo_xcb_pixmap_finish (void *abstract_surface)
 	if (unlikely (status))
 	    return status;
 
-	_cairo_xcb_connection_free_pixmap (surface->connection,
+	xcb_free_pixmap (surface->connection->xcb_connection,
 					   surface->pixmap);
 	_cairo_xcb_connection_release (surface->connection);
     }
@@ -85,7 +85,7 @@ _cairo_xcb_pixmap_create (cairo_xcb_surface_t *target,
 {
     cairo_xcb_pixmap_t *surface;
 
-    surface = malloc (sizeof (cairo_xcb_pixmap_t));
+    surface = _cairo_calloc (sizeof (cairo_xcb_pixmap_t));
     if (unlikely (surface == NULL))
 	return (cairo_xcb_pixmap_t *)
 	    _cairo_surface_create_in_error (_cairo_error (CAIRO_STATUS_NO_MEMORY));
@@ -93,7 +93,8 @@ _cairo_xcb_pixmap_create (cairo_xcb_surface_t *target,
     _cairo_surface_init (&surface->base,
 			 &_cairo_xcb_pixmap_backend,
 			 NULL,
-			 target->base.content);
+			 target->base.content,
+			 FALSE); /* is_vector */
 
     surface->connection = target->connection;
     surface->screen = target->screen;
@@ -118,7 +119,7 @@ _cairo_xcb_pixmap_copy (cairo_xcb_surface_t *target)
 {
     cairo_xcb_pixmap_t *surface;
 
-    surface = malloc (sizeof (cairo_xcb_pixmap_t));
+    surface = _cairo_calloc (sizeof (cairo_xcb_pixmap_t));
     if (unlikely (surface == NULL))
 	return (cairo_xcb_pixmap_t *)
 	    _cairo_surface_create_in_error (_cairo_error (CAIRO_STATUS_NO_MEMORY));
@@ -126,7 +127,8 @@ _cairo_xcb_pixmap_copy (cairo_xcb_surface_t *target)
     _cairo_surface_init (&surface->base,
 			 &_cairo_xcb_pixmap_backend,
 			 NULL,
-			 target->base.content);
+			 target->base.content,
+			 FALSE); /* is_vector */
 
     surface->connection = target->connection;
     surface->screen = target->screen;

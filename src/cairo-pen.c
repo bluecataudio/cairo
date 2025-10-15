@@ -106,7 +106,7 @@ _cairo_pen_fini (cairo_pen_t *pen)
 	free (pen->vertices);
 
 
-    VG (VALGRIND_MAKE_MEM_NOACCESS (pen, sizeof (cairo_pen_t)));
+    VG (VALGRIND_MAKE_MEM_UNDEFINED (pen, sizeof (cairo_pen_t)));
 }
 
 cairo_status_t
@@ -289,7 +289,12 @@ _cairo_pen_vertices_needed (double	    tolerance,
     } else if (tolerance >= major_axis) {
 	num_vertices = 4;
     } else {
-	num_vertices = ceil (2*M_PI / acos (1 - tolerance / major_axis));
+	double divisor = acos (1 - tolerance / major_axis);
+
+	if (divisor == 0.0)
+	    return 4;
+
+	num_vertices = ceil (2*M_PI / divisor);
 
 	/* number of vertices must be even */
 	if (num_vertices % 2)

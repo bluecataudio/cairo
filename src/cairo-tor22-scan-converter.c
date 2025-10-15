@@ -29,7 +29,7 @@
  * The source is from commit 734c53237a867a773640bd5b64816249fa1730f8
  * of
  *
- *   http://gitweb.freedesktop.org/?p=users/joonas/glitter-paths
+ *   https://gitweb.freedesktop.org/?p=users/joonas/glitter-paths
  */
 /* Glitter-paths is a stand alone polygon rasteriser derived from
  * David Turner's reimplementation of Tor Anderssons's 15x17
@@ -504,7 +504,7 @@ _pool_chunk_create(struct pool *pool, size_t size)
 {
     struct _pool_chunk *p;
 
-    p = malloc(size + sizeof(struct _pool_chunk));
+    p = _cairo_malloc (size + sizeof(struct _pool_chunk));
     if (unlikely (NULL == p))
 	longjmp (*pool->jmp, _cairo_error (CAIRO_STATUS_NO_MEMORY));
 
@@ -620,16 +620,6 @@ inline static void
 cell_list_rewind (struct cell_list *cells)
 {
     cells->cursor = &cells->head;
-}
-
-inline static void
-cell_list_maybe_rewind (struct cell_list *cells, int x)
-{
-    if (x < cells->cursor->x) {
-	cells->cursor = cells->rewind;
-	if (x < cells->cursor->x)
-	    cells->cursor = &cells->head;
-    }
 }
 
 inline static void
@@ -1295,12 +1285,12 @@ glitter_scan_converter_reset(
     max_num_spans = xmax - xmin + 1;
 
     if (max_num_spans > ARRAY_LENGTH(converter->spans_embedded)) {
-        converter->spans = _cairo_malloc_ab (max_num_spans,
-            sizeof (cairo_half_open_span_t));
-        if (unlikely (converter->spans == NULL))
-            return _cairo_error (CAIRO_STATUS_NO_MEMORY);
+	converter->spans = _cairo_malloc_ab (max_num_spans,
+					     sizeof (cairo_half_open_span_t));
+	if (unlikely (converter->spans == NULL))
+	    return _cairo_error (CAIRO_STATUS_NO_MEMORY);
     } else
-        converter->spans = converter->spans_embedded;
+	converter->spans = converter->spans_embedded;
 
     xmin = int_to_grid_scaled_x(xmin);
     ymin = int_to_grid_scaled_y(ymin);
@@ -1685,7 +1675,7 @@ _cairo_tor22_scan_converter_create (int			xmin,
     cairo_tor22_scan_converter_t *self;
     cairo_status_t status;
 
-    self = malloc (sizeof(struct _cairo_tor22_scan_converter));
+    self = _cairo_calloc (sizeof(struct _cairo_tor22_scan_converter));
     if (unlikely (self == NULL)) {
 	status = _cairo_error (CAIRO_STATUS_NO_MEMORY);
 	goto bail_nomem;

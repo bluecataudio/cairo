@@ -71,7 +71,9 @@ _cairo_surface_snapshot_flush (void *abstract_surface, unsigned flags)
     cairo_status_t status;
 
     target = _cairo_surface_snapshot_get_target (&surface->base);
-    status = _cairo_surface_flush (target, flags);
+    status = target->status;
+    if (status == CAIRO_STATUS_SUCCESS)
+	status = _cairo_surface_flush (target, flags);
     cairo_surface_destroy (target);
 
     return status;
@@ -99,15 +101,18 @@ _cairo_surface_snapshot_acquire_source_image (void                    *abstract_
     struct snapshot_extra *extra;
     cairo_status_t status;
 
-    extra = malloc (sizeof (*extra));
-    if (unlikely (extra == NULL))
+    extra = _cairo_calloc (sizeof (*extra));
+    if (unlikely (extra == NULL)) {
+	*extra_out = NULL;
 	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
+    }
 
     extra->target = _cairo_surface_snapshot_get_target (&surface->base);
     status =  _cairo_surface_acquire_source_image (extra->target, image_out, &extra->extra);
     if (unlikely (status)) {
 	cairo_surface_destroy (extra->target);
 	free (extra);
+	extra = NULL;
     }
 
     *extra_out = extra;
@@ -258,14 +263,15 @@ _cairo_surface_snapshot (cairo_surface_t *surface)
     if (snapshot != NULL)
 	return cairo_surface_reference (&snapshot->base);
 
-    snapshot = malloc (sizeof (cairo_surface_snapshot_t));
+    snapshot = _cairo_calloc (sizeof (cairo_surface_snapshot_t));
     if (unlikely (snapshot == NULL))
 	return _cairo_surface_create_in_error (_cairo_error (CAIRO_STATUS_SURFACE_FINISHED));
 
     _cairo_surface_init (&snapshot->base,
 			 &_cairo_surface_snapshot_backend,
 			 NULL, /* device */
-			 surface->content);
+			 surface->content,
+			 surface->is_vector);
     snapshot->base.type = surface->type;
 
     CAIRO_MUTEX_INIT (snapshot->mutex);

@@ -107,6 +107,220 @@
  * space</firstterm>.
  **/
 
+/**
+ * SECTION:cairo-tag
+ * @Title: Tags and Links
+ * @Short_Description: Hyperlinks and document structure
+ * @See_Also: #cairo_pdf_surface_t
+ *
+ * The tag functions provide the ability to specify hyperlinks and
+ * document logical structure on supported backends. The following tags are supported:
+ * * [Link][link] - Create a hyperlink
+ * * [Destinations][dest] - Create a hyperlink destination
+ * * [Document Structure Tags][doc-struct] - Create PDF Document Structure
+ *
+ * # Link Tags # {#link}
+ * A hyperlink is specified by enclosing the hyperlink text with the %CAIRO_TAG_LINK tag.
+ *
+ * For example:
+ * <informalexample><programlisting>
+ * cairo_tag_begin (cr, CAIRO_TAG_LINK, "uri='https://cairographics.org'");
+ * cairo_move_to (cr, 50, 50);
+ * cairo_show_text (cr, "This is a link to the cairo website.");
+ * cairo_tag_end (cr, CAIRO_TAG_LINK);
+ * </programlisting></informalexample>
+ *
+ * The PDF backend uses one or more rectangles to define the clickable
+ * area of the link.  By default cairo will use the extents of the
+ * drawing operations enclosed by the begin/end link tags to define the
+ * clickable area. In some cases, such as a link split across two
+ * lines, the default rectangle is undesirable.
+ *
+ * @rect: [optional] The "rect" attribute allows the application to
+ * specify one or more rectangles that form the clickable region.  The
+ * value of this attribute is an array of floats. Each rectangle is
+ * specified by four elements in the array: x, y, width, height. The
+ * array size must be a multiple of four.
+ *
+ * An example of creating a link with user specified clickable region:
+ * <informalexample><programlisting>
+ * struct text {
+ *     const char *s;
+ *     double x, y;
+ * };
+ * const struct text text1 = { "This link is split", 450, 70 };
+ * const struct text text2 = { "across two lines", 50, 70 };
+ * cairo_text_extents_t text1_extents;
+ * cairo_text_extents_t text2_extents;
+ * char attribs[100];
+ *
+ * cairo_text_extents (cr, text1.s, &text1_extents);
+ * cairo_text_extents (cr, text2.s, &text2_extents);
+ * sprintf (attribs,
+ *          "rect=[%f %f %f %f %f %f %f %f] uri='https://cairographics.org'",
+ *          text1_extents.x_bearing + text1.x,
+ *          text1_extents.y_bearing + text1.y,
+ *          text1_extents.width,
+ *          text1_extents.height,
+ *          text2_extents.x_bearing + text2.x,
+ *          text2_extents.y_bearing + text2.y,
+ *          text2_extents.width,
+ *          text2_extents.height);
+ *
+ * cairo_tag_begin (cr, CAIRO_TAG_LINK, attribs);
+ * cairo_move_to (cr, text1.x, text1.y);
+ * cairo_show_text (cr, text1.s);
+ * cairo_move_to (cr, text2.x, text2.y);
+ * cairo_show_text (cr, text2.s);
+ * cairo_tag_end (cr, CAIRO_TAG_LINK);
+ * </programlisting></informalexample>
+ *
+ * There are three types of links. Each type has its own attributes as detailed below.
+ * * [Internal Links][internal-link] - A link to a location in the same document
+ * * [URI Links][uri-link] - A link to a Uniform resource identifier
+ * * [File Links][file-link] - A link to a location in another document
+ *
+ * ## Internal Links ## {#internal-link}
+ * An internal link is a link to a location in the same document. The destination
+ * is specified with either:
+ *
+ * @dest: a UTF-8 string specifying the destination in the PDF file to link
+ * to. Destinations are created with the %CAIRO_TAG_DEST tag.
+ *
+ * or the two attributes:
+ *
+ * @page: An integer specifying the page number in the PDF file to link to.
+ *
+ * @pos: [optional] An array of two floats specifying the x,y position
+ * on the page.
+ *
+ * An example of the link attributes to link to a page and x,y position:
+ * <programlisting>
+ * "page=3 pos=[3.1 6.2]"
+ * </programlisting>
+ *
+ * ## URI Links ## {#uri-link}
+ * A URI link is a link to a Uniform Resource Identifier ([RFC 2396](http://tools.ietf.org/html/rfc2396)).
+ *
+ * A URI is specified with the following attribute:
+ *
+ * @uri: An ASCII string specifying the URI.
+ *
+ * An example of the link attributes to the cairo website:
+ * <programlisting>
+ * "uri='https://cairographics.org'"
+ * </programlisting>
+ *
+ * ## File Links ## {#file-link}
+ * A file link is a link a location in another PDF file.
+ *
+ * The file attribute (required) specifies the name of the PDF file:
+ *
+ * @file: File name of PDF file to link to.
+ *
+ * The position is specified by either:
+ *
+ *  @dest: a UTF-8 string specifying the named destination in the PDF file.
+ *
+ * or
+ *
+ *  @page: An integer specifying the page number in the PDF file.
+ *
+ *  @pos: [optional] An array of two floats specifying the x,y
+ *  position on the page. Position coordinates in external files are in PDF
+ *  coordinates (0,0 at bottom left).
+ *
+ * An example of the link attributes to PDF file:
+ * <programlisting>
+ * "file='document.pdf' page=16 pos=[25 40]"
+ * </programlisting>
+ *
+ * # Destination Tags # {#dest}
+ *
+ * A destination is specified by enclosing the destination drawing
+ * operations with the %CAIRO_TAG_DEST tag.
+ *
+ * @name: [required] A UTF-8 string specifying the name of this destination.
+ *
+ * @x: [optional] A float specifying the x coordinate of destination
+ *                 position on this page. If not specified the default
+ *                 x coordinate is the left side of the extents of the
+ *                 operations enclosed by the %CAIRO_TAG_DEST begin/end tags. If
+ *                 no operations are enclosed, the x coordidate is 0.
+ *
+ * @y: [optional] A float specifying the y coordinate of destination
+ *                 position on this page. If not specified the default
+ *                 y coordinate is the top of the extents of the
+ *                 operations enclosed by the %CAIRO_TAG_DEST begin/end tags. If
+ *                 no operations are enclosed, the y coordidate is 0.
+ *
+ * @internal: A boolean that if true, the destination name may be
+ *            omitted from PDF where possible. In this case, links
+ *            refer directly to the page and position instead of via
+ *            the named destination table. Note that if this
+ *            destination is referenced by another PDF (see [File Links][file-link]),
+ *            this attribute must be false. Default is false.
+ *
+ * <informalexample><programlisting>
+ * /&ast; Create a hyperlink &ast;/
+ * cairo_tag_begin (cr, CAIRO_TAG_LINK, "dest='mydest' internal");
+ * cairo_move_to (cr, 50, 50);
+ * cairo_show_text (cr, "This is a hyperlink.");
+ * cairo_tag_end (cr, CAIRO_TAG_LINK);
+ *
+ * /&ast; Create a destination &ast;/
+ * cairo_tag_begin (cr, CAIRO_TAG_DEST, "name='mydest'");
+ * cairo_move_to (cr, 50, 250);
+ * cairo_show_text (cr, "This paragraph is the destination of the above link.");
+ * cairo_tag_end (cr, CAIRO_TAG_DEST);
+ * </programlisting></informalexample>
+ *
+ * # Document Structure (PDF) # {#doc-struct}
+ *
+ * The document structure tags provide a means of specifying structural information
+ * such as headers, paragraphs, tables, and figures. The inclusion of structural information facilitates:
+ * * Extraction of text and graphics for copy and paste
+ * * Reflow of text and graphics in the viewer
+ * * Processing text eg searching and indexing
+ * * Conversion to other formats
+ * * Accessability support
+ *
+ * The list of structure types is specified in section 14.8.4 of the
+ * [PDF Reference](http://www.adobe.com/content/dam/Adobe/en/devnet/acrobat/pdfs/PDF32000_2008.pdf).
+ *
+ * Note the PDF "Link" structure tag is the same as the cairo %CAIRO_TAG_LINK tag.
+ *
+ * The following example creates a document structure for a document containing two section, each with
+ * a header and a paragraph.
+ *
+ * <informalexample><programlisting>
+ * cairo_tag_begin (cr, "Document", NULL);
+ *
+ * cairo_tag_begin (cr, "Sect", NULL);
+ * cairo_tag_begin (cr, "H1", NULL);
+ * cairo_show_text (cr, "Heading 1");
+ * cairo_tag_end (cr, "H1");
+ *
+ * cairo_tag_begin (cr, "P", NULL);
+ * cairo_show_text (cr, "Paragraph 1");
+ * cairo_tag_end (cr, "P");
+ * cairo_tag_end (cr, "Sect");
+ *
+ * cairo_tag_begin (cr, "Sect", NULL);
+ * cairo_tag_begin (cr, "H1", NULL);
+ * cairo_show_text (cr, "Heading 2");
+ * cairo_tag_end (cr, "H1");
+ *
+ * cairo_tag_begin (cr, "P", NULL);
+ * cairo_show_text (cr, "Paragraph 2");
+ * cairo_tag_end (cr, "P");
+ * cairo_tag_end (cr, "Sect");
+ *
+ * cairo_tag_end (cr, "Document");
+ * </programlisting></informalexample>
+ *
+ **/
+
 #define DEFINE_NIL_CONTEXT(status)					\
     {									\
 	CAIRO_REFERENCE_COUNT_INVALID,	/* ref_count */			\
@@ -153,8 +367,13 @@ static const cairo_t _cairo_nil[] = {
     DEFINE_NIL_CONTEXT (CAIRO_STATUS_DEVICE_ERROR),
     DEFINE_NIL_CONTEXT (CAIRO_STATUS_INVALID_MESH_CONSTRUCTION),
     DEFINE_NIL_CONTEXT (CAIRO_STATUS_DEVICE_FINISHED),
-    DEFINE_NIL_CONTEXT (CAIRO_STATUS_JBIG2_GLOBAL_MISSING)
-
+    DEFINE_NIL_CONTEXT (CAIRO_STATUS_JBIG2_GLOBAL_MISSING),
+    DEFINE_NIL_CONTEXT (CAIRO_STATUS_PNG_ERROR),
+    DEFINE_NIL_CONTEXT (CAIRO_STATUS_FREETYPE_ERROR),
+    DEFINE_NIL_CONTEXT (CAIRO_STATUS_WIN32_GDI_ERROR),
+    DEFINE_NIL_CONTEXT (CAIRO_STATUS_TAG_ERROR),
+    DEFINE_NIL_CONTEXT (CAIRO_STATUS_DWRITE_ERROR),
+    DEFINE_NIL_CONTEXT (CAIRO_STATUS_SVG_FONT_ERROR)
 };
 COMPILE_TIME_ASSERT (ARRAY_LENGTH (_cairo_nil) == CAIRO_STATUS_LAST_STATUS - 1);
 
@@ -239,7 +458,6 @@ cairo_create (cairo_surface_t *target)
     return target->backend->create_context (target);
 
 }
-slim_hidden_def (cairo_create);
 
 void
 _cairo_init (cairo_t *cr,
@@ -260,8 +478,8 @@ _cairo_init (cairo_t *cr,
  * @cr from being destroyed until a matching call to cairo_destroy()
  * is made.
  *
- * The number of references to a #cairo_t can be get using
- * cairo_get_reference_count().
+ * Use cairo_get_reference_count() to get the number of references to
+ * a #cairo_t.
  *
  * Return value: the referenced #cairo_t.
  *
@@ -309,7 +527,6 @@ cairo_destroy (cairo_t *cr)
 
     cr->backend->destroy (cr);
 }
-slim_hidden_def (cairo_destroy);
 
 /**
  * cairo_get_user_data:
@@ -413,7 +630,6 @@ cairo_save (cairo_t *cr)
     if (unlikely (status))
 	_cairo_set_error (cr, status);
 }
-slim_hidden_def(cairo_save);
 
 /**
  * cairo_restore:
@@ -437,7 +653,6 @@ cairo_restore (cairo_t *cr)
     if (unlikely (status))
 	_cairo_set_error (cr, status);
 }
-slim_hidden_def(cairo_restore);
 
 /**
  * cairo_push_group:
@@ -520,7 +735,6 @@ cairo_push_group_with_content (cairo_t *cr, cairo_content_t content)
     if (unlikely (status))
 	_cairo_set_error (cr, status);
 }
-slim_hidden_def(cairo_push_group_with_content);
 
 /**
  * cairo_pop_group:
@@ -557,7 +771,6 @@ cairo_pop_group (cairo_t *cr)
 
     return group_pattern;
 }
-slim_hidden_def(cairo_pop_group);
 
 /**
  * cairo_pop_group_to_source:
@@ -621,11 +834,10 @@ cairo_set_operator (cairo_t *cr, cairo_operator_t op)
     if (unlikely (status))
 	_cairo_set_error (cr, status);
 }
-slim_hidden_def (cairo_set_operator);
 
 
 #if 0
-/**
+/*
  * cairo_set_opacity:
  * @cr: a #cairo_t
  * @opacity: the level of opacity to use when compositing
@@ -635,9 +847,7 @@ slim_hidden_def (cairo_set_operator);
  * using the alpha value.
  *
  * The default opacity is 1.
- *
- * Since: TBD
- **/
+ */
 void
 cairo_set_opacity (cairo_t *cr, double opacity)
 {
@@ -684,7 +894,6 @@ cairo_set_source_rgb (cairo_t *cr, double red, double green, double blue)
     if (unlikely (status))
 	_cairo_set_error (cr, status);
 }
-slim_hidden_def (cairo_set_source_rgb);
 
 /**
  * cairo_set_source_rgba:
@@ -701,6 +910,8 @@ slim_hidden_def (cairo_set_source_rgb);
  * The color and alpha components are floating point numbers in the
  * range 0 to 1. If the values passed in are outside that range, they
  * will be clamped.
+ *
+ * Note that the color and alpha values are not premultiplied.
  *
  * The default source pattern is opaque black, (that is, it is
  * equivalent to cairo_set_source_rgba(cr, 0.0, 0.0, 0.0, 1.0)).
@@ -767,7 +978,6 @@ cairo_set_source_surface (cairo_t	  *cr,
     if (unlikely (status))
 	_cairo_set_error (cr, status);
 }
-slim_hidden_def (cairo_set_source_surface);
 
 /**
  * cairo_set_source:
@@ -812,7 +1022,6 @@ cairo_set_source (cairo_t *cr, cairo_pattern_t *source)
     if (unlikely (status))
 	_cairo_set_error (cr, status);
 }
-slim_hidden_def (cairo_set_source);
 
 /**
  * cairo_get_source:
@@ -865,7 +1074,6 @@ cairo_set_tolerance (cairo_t *cr, double tolerance)
     if (unlikely (status))
 	_cairo_set_error (cr, status);
 }
-slim_hidden_def (cairo_set_tolerance);
 
 /**
  * cairo_set_antialias:
@@ -943,9 +1151,8 @@ cairo_set_fill_rule (cairo_t *cr, cairo_fill_rule_t fill_rule)
  * cairo_set_line_width() and ignore this note.
  *
  * As with the other stroke parameters, the current line width is
- * examined by cairo_stroke(), cairo_stroke_extents(), and
- * cairo_stroke_to_path(), but does not have any effect during path
- * construction.
+ * examined by cairo_stroke(), and cairo_stroke_extents(), but does not have
+ * any effect during path construction.
  *
  * The default line width value is 2.0.
  *
@@ -966,7 +1173,46 @@ cairo_set_line_width (cairo_t *cr, double width)
     if (unlikely (status))
 	_cairo_set_error (cr, status);
 }
-slim_hidden_def (cairo_set_line_width);
+
+/**
+ * cairo_set_hairline:
+ * @cr: a #cairo_t
+ * @set_hairline: whether or not to set hairline mode
+ *
+ * Sets lines within the cairo context to be hairlines.
+ * Hairlines are logically zero-width lines that are drawn at the
+ * thinnest renderable width possible in the current context.
+ *
+ * On surfaces with native hairline support, the native hairline
+ * functionality will be used. Surfaces that support hairlines include:
+ * - pdf/ps: Encoded as 0-width line.
+ * - win32_printing: Rendered with PS_COSMETIC pen.
+ * - svg: Encoded as 1px non-scaling-stroke.
+ * - script: Encoded with set-hairline function.
+ *
+ * Cairo will always render hairlines at 1 device unit wide, even if
+ * an anisotropic scaling was applied to the stroke width. In the wild,
+ * handling of this situation is not well-defined. Some PDF, PS, and SVG
+ * renderers match Cairo's output, but some very popular implementations
+ * (Acrobat, Chrome, rsvg) will scale the hairline unevenly.
+ * As such, best practice is to reset any anisotropic scaling before calling
+ * cairo_stroke(). See https://cairographics.org/cookbook/ellipses/
+ * for an example.
+ *
+ * Since: 1.18
+ **/
+void
+cairo_set_hairline (cairo_t *cr, cairo_bool_t set_hairline)
+{
+    cairo_status_t status;
+
+    if (unlikely (cr->status))
+	return;
+
+    status = cr->backend->set_hairline (cr, set_hairline);
+    if (unlikely (status))
+	_cairo_set_error (cr, status);
+}
 
 /**
  * cairo_set_line_cap:
@@ -978,9 +1224,8 @@ slim_hidden_def (cairo_set_line_width);
  * styles are drawn.
  *
  * As with the other stroke parameters, the current line cap style is
- * examined by cairo_stroke(), cairo_stroke_extents(), and
- * cairo_stroke_to_path(), but does not have any effect during path
- * construction.
+ * examined by cairo_stroke(), and cairo_stroke_extents(), but does not have
+ * any effect during path construction.
  *
  * The default line cap style is %CAIRO_LINE_CAP_BUTT.
  *
@@ -998,7 +1243,6 @@ cairo_set_line_cap (cairo_t *cr, cairo_line_cap_t line_cap)
     if (unlikely (status))
 	_cairo_set_error (cr, status);
 }
-slim_hidden_def (cairo_set_line_cap);
 
 /**
  * cairo_set_line_join:
@@ -1010,9 +1254,8 @@ slim_hidden_def (cairo_set_line_cap);
  * styles are drawn.
  *
  * As with the other stroke parameters, the current line join style is
- * examined by cairo_stroke(), cairo_stroke_extents(), and
- * cairo_stroke_to_path(), but does not have any effect during path
- * construction.
+ * examined by cairo_stroke(), and cairo_stroke_extents(), but does not have
+ * any effect during path construction.
  *
  * The default line join style is %CAIRO_LINE_JOIN_MITER.
  *
@@ -1030,7 +1273,6 @@ cairo_set_line_join (cairo_t *cr, cairo_line_join_t line_join)
     if (unlikely (status))
 	_cairo_set_error (cr, status);
 }
-slim_hidden_def (cairo_set_line_join);
 
 /**
  * cairo_set_dash:
@@ -1146,9 +1388,8 @@ cairo_get_dash (cairo_t *cr,
  * converted to a bevel.
  *
  * As with the other stroke parameters, the current line miter limit is
- * examined by cairo_stroke(), cairo_stroke_extents(), and
- * cairo_stroke_to_path(), but does not have any effect during path
- * construction.
+ * examined by cairo_stroke(), and cairo_stroke_extents(), but does not have
+ * any effect during path construction.
  *
  * The default miter limit value is 10.0, which will convert joins
  * with interior angles less than 11 degrees to bevels instead of
@@ -1200,7 +1441,6 @@ cairo_translate (cairo_t *cr, double tx, double ty)
     if (unlikely (status))
 	_cairo_set_error (cr, status);
 }
-slim_hidden_def (cairo_translate);
 
 /**
  * cairo_scale:
@@ -1227,7 +1467,6 @@ cairo_scale (cairo_t *cr, double sx, double sy)
     if (unlikely (status))
 	_cairo_set_error (cr, status);
 }
-slim_hidden_def (cairo_scale);
 
 /**
  * cairo_rotate:
@@ -1280,7 +1519,6 @@ cairo_transform (cairo_t	      *cr,
     if (unlikely (status))
 	_cairo_set_error (cr, status);
 }
-slim_hidden_def (cairo_transform);
 
 /**
  * cairo_set_matrix:
@@ -1305,7 +1543,6 @@ cairo_set_matrix (cairo_t	       *cr,
     if (unlikely (status))
 	_cairo_set_error (cr, status);
 }
-slim_hidden_def (cairo_set_matrix);
 
 /**
  * cairo_identity_matrix:
@@ -1351,7 +1588,6 @@ cairo_user_to_device (cairo_t *cr, double *x, double *y)
 
     cr->backend->user_to_device (cr, x, y);
 }
-slim_hidden_def (cairo_user_to_device);
 
 /**
  * cairo_user_to_device_distance:
@@ -1374,7 +1610,6 @@ cairo_user_to_device_distance (cairo_t *cr, double *dx, double *dy)
 
     cr->backend->user_to_device_distance (cr, dx, dy);
 }
-slim_hidden_def (cairo_user_to_device_distance);
 
 /**
  * cairo_device_to_user:
@@ -1396,7 +1631,6 @@ cairo_device_to_user (cairo_t *cr, double *x, double *y)
 
     cr->backend->device_to_user (cr, x, y);
 }
-slim_hidden_def (cairo_device_to_user);
 
 /**
  * cairo_device_to_user_distance:
@@ -1441,7 +1675,6 @@ cairo_new_path (cairo_t *cr)
     if (unlikely (status))
 	_cairo_set_error (cr, status);
 }
-slim_hidden_def(cairo_new_path);
 
 /**
  * cairo_new_sub_path:
@@ -1497,8 +1730,6 @@ cairo_move_to (cairo_t *cr, double x, double y)
     if (unlikely (status))
 	_cairo_set_error (cr, status);
 }
-slim_hidden_def(cairo_move_to);
-
 
 /**
  * cairo_line_to:
@@ -1527,7 +1758,6 @@ cairo_line_to (cairo_t *cr, double x, double y)
     if (unlikely (status))
 	_cairo_set_error (cr, status);
 }
-slim_hidden_def (cairo_line_to);
 
 /**
  * cairo_curve_to:
@@ -1568,7 +1798,6 @@ cairo_curve_to (cairo_t *cr,
     if (unlikely (status))
 	_cairo_set_error (cr, status);
 }
-slim_hidden_def (cairo_curve_to);
 
 /**
  * cairo_arc:
@@ -1787,7 +2016,6 @@ cairo_rel_line_to (cairo_t *cr, double dx, double dy)
     if (unlikely (status))
 	_cairo_set_error (cr, status);
 }
-slim_hidden_def(cairo_rel_line_to);
 
 /**
  * cairo_rel_curve_to:
@@ -1930,7 +2158,6 @@ cairo_close_path (cairo_t *cr)
     if (unlikely (status))
 	_cairo_set_error (cr, status);
 }
-slim_hidden_def(cairo_close_path);
 
 /**
  * cairo_path_extents:
@@ -2004,7 +2231,6 @@ cairo_paint (cairo_t *cr)
     if (unlikely (status))
 	_cairo_set_error (cr, status);
 }
-slim_hidden_def (cairo_paint);
 
 /**
  * cairo_paint_with_alpha:
@@ -2067,7 +2293,6 @@ cairo_mask (cairo_t         *cr,
     if (unlikely (status))
 	_cairo_set_error (cr, status);
 }
-slim_hidden_def (cairo_mask);
 
 /**
  * cairo_mask_surface:
@@ -2151,7 +2376,6 @@ cairo_stroke (cairo_t *cr)
     if (unlikely (status))
 	_cairo_set_error (cr, status);
 }
-slim_hidden_def(cairo_stroke);
 
 /**
  * cairo_stroke_preserve:
@@ -2180,7 +2404,6 @@ cairo_stroke_preserve (cairo_t *cr)
     if (unlikely (status))
 	_cairo_set_error (cr, status);
 }
-slim_hidden_def(cairo_stroke_preserve);
 
 /**
  * cairo_fill:
@@ -2232,7 +2455,6 @@ cairo_fill_preserve (cairo_t *cr)
     if (unlikely (status))
 	_cairo_set_error (cr, status);
 }
-slim_hidden_def(cairo_fill_preserve);
 
 /**
  * cairo_copy_page:
@@ -2534,7 +2756,6 @@ cairo_clip_preserve (cairo_t *cr)
     if (unlikely (status))
 	_cairo_set_error (cr, status);
 }
-slim_hidden_def(cairo_clip_preserve);
 
 /**
  * cairo_reset_clip:
@@ -2664,6 +2885,116 @@ cairo_copy_clip_rectangle_list (cairo_t *cr)
 }
 
 /**
+ * CAIRO_TAG_DEST:
+ *
+ * Create a destination for a hyperlink. Destination tag attributes
+ * are detailed at [Destinations][dest].
+ *
+ * Since: 1.16
+ **/
+
+/**
+ * CAIRO_TAG_LINK:
+ *
+ * Create hyperlink. Link tag attributes are detailed at
+ * [Links][link].
+ *
+ * Since: 1.16
+ **/
+
+/**
+ * CAIRO_TAG_CONTENT:
+ *
+ * Create a content tag.
+ *
+ * Since: 1.18
+ **/
+
+/**
+ * CAIRO_TAG_CONTENT_REF:
+ *
+ * Create a content reference tag.
+ *
+ * Since: 1.18
+ **/
+
+/**
+ * cairo_tag_begin:
+ * @cr: a cairo context
+ * @tag_name: tag name
+ * @attributes: tag attributes
+ *
+ * Marks the beginning of the @tag_name structure. Call
+ * cairo_tag_end() with the same @tag_name to mark the end of the
+ * structure.
+ *
+ * The attributes string is of the form "key1=value2 key2=value2 ...".
+ * Values may be boolean (true/false or 1/0), integer, float, string,
+ * or an array.
+ *
+ * String values are enclosed in single quotes
+ * ('). Single quotes and backslashes inside the string should be
+ * escaped with a backslash.
+ *
+ * Boolean values may be set to true by only
+ * specifying the key. eg the attribute string "key" is the equivalent
+ * to "key=true".
+ *
+ * Arrays are enclosed in '[]'. eg "rect=[1.2 4.3 2.0 3.0]".
+ *
+ * If no attributes are required, @attributes can be an empty string or NULL.
+ *
+ * See [Tags and Links Description][cairo-Tags-and-Links.description]
+ * for the list of tags and attributes.
+ *
+ * Invalid nesting of tags or invalid attributes will cause @cr to
+ * shutdown with a status of %CAIRO_STATUS_TAG_ERROR.
+ *
+ * See cairo_tag_end().
+ *
+ * Since: 1.16
+ **/
+void
+cairo_tag_begin (cairo_t *cr, const char *tag_name, const char *attributes)
+{
+    cairo_status_t status;
+
+    if (unlikely (cr->status))
+	return;
+
+    status = cr->backend->tag_begin (cr, tag_name, attributes);
+    if (unlikely (status))
+	_cairo_set_error (cr, status);
+}
+
+/**
+ * cairo_tag_end:
+ * @cr: a cairo context
+ * @tag_name: tag name
+ *
+ * Marks the end of the @tag_name structure.
+ *
+ * Invalid nesting of tags will cause @cr to shutdown with a status of
+ * %CAIRO_STATUS_TAG_ERROR.
+ *
+ * See cairo_tag_begin().
+ *
+ * Since: 1.16
+ **/
+cairo_public void
+cairo_tag_end (cairo_t *cr, const char *tag_name)
+{
+    cairo_status_t status;
+
+    if (unlikely (cr->status))
+	return;
+
+    status = cr->backend->tag_end (cr, tag_name);
+    if (unlikely (status))
+	_cairo_set_error (cr, status);
+}
+
+/**
  * cairo_select_font_face:
  * @cr: a #cairo_t
  * @family: a font family name, encoded in UTF-8
@@ -2682,11 +3013,11 @@ cairo_copy_clip_rectangle_list (cairo_t *cr)
  * "sans-serif", "cursive", "fantasy", "monospace"), are likely to
  * work as expected.
  *
- * If @family starts with the string "@cairo:", or if no native font
+ * If @family starts with the string "\@cairo:", or if no native font
  * backends are compiled in, cairo will use an internal font family.
  * The internal font family recognizes many modifiers in the @family
  * string, most notably, it recognizes the string "monospace".  That is,
- * the family name "@cairo:monospace" will use the monospace version of
+ * the family name "\@cairo:monospace" will use the monospace version of
  * the internal font family.
  *
  * For "real" font selection, see the font-backend-specific
@@ -2854,7 +3185,6 @@ cairo_set_font_size (cairo_t *cr, double size)
     if (unlikely (status))
 	_cairo_set_error (cr, status);
 }
-slim_hidden_def (cairo_set_font_size);
 
 /**
  * cairo_set_font_matrix:
@@ -2884,7 +3214,6 @@ cairo_set_font_matrix (cairo_t		    *cr,
     if (unlikely (status))
 	_cairo_set_error (cr, status);
 }
-slim_hidden_def (cairo_set_font_matrix);
 
 /**
  * cairo_get_font_matrix:
@@ -2939,7 +3268,6 @@ cairo_set_font_options (cairo_t                    *cr,
     if (unlikely (status))
 	_cairo_set_error (cr, status);
 }
-slim_hidden_def (cairo_set_font_options);
 
 /**
  * cairo_get_font_options:
@@ -2992,7 +3320,7 @@ cairo_set_scaled_font (cairo_t                   *cr,
     if (unlikely (cr->status))
 	return;
 
-    if ((scaled_font == NULL)) {
+    if (scaled_font == NULL) {
 	_cairo_set_error (cr, _cairo_error (CAIRO_STATUS_NULL_POINTER));
 	return;
     }
@@ -3036,7 +3364,6 @@ cairo_get_scaled_font (cairo_t *cr)
 
     return cr->backend->get_scaled_font (cr);
 }
-slim_hidden_def (cairo_get_scaled_font);
 
 /**
  * cairo_text_extents:
@@ -3574,7 +3901,7 @@ cairo_get_operator (cairo_t *cr)
 }
 
 #if 0
-/**
+/*
  * cairo_get_opacity:
  * @cr: a cairo context
  *
@@ -3612,7 +3939,6 @@ cairo_get_tolerance (cairo_t *cr)
 
     return cr->backend->get_tolerance (cr);
 }
-slim_hidden_def (cairo_get_tolerance);
 
 /**
  * cairo_get_antialias:
@@ -3675,7 +4001,7 @@ cairo_has_current_point (cairo_t *cr)
  * cairo_move_to(), cairo_line_to(), cairo_curve_to(),
  * cairo_rel_move_to(), cairo_rel_line_to(), cairo_rel_curve_to(),
  * cairo_arc(), cairo_arc_negative(), cairo_rectangle(),
- * cairo_text_path(), cairo_glyph_path(), cairo_stroke_to_path().
+ * cairo_text_path(), cairo_glyph_path().
  *
  * Some functions use and alter the current point but do not
  * otherwise change current path:
@@ -3703,7 +4029,6 @@ cairo_get_current_point (cairo_t *cr, double *x_ret, double *y_ret)
     if (y_ret)
 	*y_ret = y;
 }
-slim_hidden_def(cairo_get_current_point);
 
 /**
  * cairo_get_fill_rule:
@@ -3745,7 +4070,25 @@ cairo_get_line_width (cairo_t *cr)
 
     return cr->backend->get_line_width (cr);
 }
-slim_hidden_def (cairo_get_line_width);
+
+/**
+ * cairo_get_hairline:
+ * @cr: a cairo context
+ *
+ * Returns whether or not hairline mode is set, as set by cairo_set_hairline().
+ *
+ * Return value: whether hairline mode is set.
+ *
+ * Since: 1.18
+ **/
+cairo_bool_t
+cairo_get_hairline (cairo_t *cr)
+{
+    if (unlikely (cr->status))
+        return FALSE;
+
+    return cr->backend->get_hairline (cr);
+}
 
 /**
  * cairo_get_line_cap:
@@ -3823,7 +4166,6 @@ cairo_get_matrix (cairo_t *cr, cairo_matrix_t *matrix)
 
     cr->backend->get_matrix (cr, matrix);
 }
-slim_hidden_def (cairo_get_matrix);
 
 /**
  * cairo_get_target:
@@ -3851,7 +4193,6 @@ cairo_get_target (cairo_t *cr)
 
     return cr->backend->get_original_target (cr);
 }
-slim_hidden_def (cairo_get_target);
 
 /**
  * cairo_get_group_target:
@@ -4028,4 +4369,3 @@ cairo_status (cairo_t *cr)
 {
     return cr->status;
 }
-slim_hidden_def (cairo_status);

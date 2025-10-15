@@ -470,7 +470,7 @@ draw_pixel (unsigned char *data, int width, int height, int stride,
 	tg += tg >> 16;
 	tb += tb >> 16;
 
-	*((uint32_t*) (data + y*stride + 4*x)) = ((ta << 16) & 0xff000000) |
+	*((uint32_t*) (data + y*(ptrdiff_t)stride + 4*x)) = ((ta << 16) & 0xff000000) |
 	    ((tr >> 8) & 0xff0000) | ((tg >> 16) & 0xff00) | (tb >> 24);
     }
 }
@@ -659,7 +659,7 @@ draw_bezier_curve (unsigned char *data, int width, int height, int stride,
  *        width, height are the dimensions of the image
  *        stride is the stride in bytes between adjacent rows
  *        vshift is log2(n) if n is the number of desired steps
- *        p[i][j], p[i][j] are the the nodes of the Bezier patch
+ *        p[i][j], p[i][j] are the nodes of the Bezier patch
  *        col[i][j] is the j-th color component of the i-th corner
  *
  * Output: data will be changed to have the requested patch drawn in

@@ -37,15 +37,6 @@
  *	Vladimir Vukicevic <vladimir@pobox.com>
  */
 
-#define WIN32_LEAN_AND_MEAN
-/* We require Windows 2000 features such as ETO_PDY */
-#if !defined(WINVER) || (WINVER < 0x0500)
-# define WINVER 0x0500
-#endif
-#if !defined(_WIN32_WINNT) || (_WIN32_WINNT < 0x0500)
-# define _WIN32_WINNT 0x0500
-#endif
-
 #include "cairoint.h"
 
 #include "cairo-atomic-private.h"
@@ -85,47 +76,6 @@ static const cairo_device_backend_t _cairo_win32_device_backend = {
     _cairo_win32_device_destroy,
 };
 
-#if 0
-D2D1_RENDER_TARGET_PROPERTIES props = D2D1::RenderTargetProperties(D2D1_RENDER_TARGET_TYPE_DEFAULT,
-								   D2D1::PixelFormat(
-										     DXGI_FORMAT_B8G8R8A8_UNORM,
-										     D2D1_ALPHA_MODE_IGNORE),
-								   0,
-								   0,
-								   D2D1_RENDER_TARGET_USAGE_NONE,
-								   D2D1_FEATURE_LEVEL_DEFAULT
-								  );
-
-hr = m_pD2DFactory->CreateDCRenderTarget(&props, &device->d2d);
-#endif
-
-static cairo_bool_t is_win98 (void)
-{
-    OSVERSIONINFO os;
-
-    os.dwOSVersionInfoSize = sizeof (os);
-    GetVersionEx (&os);
-
-    return (VER_PLATFORM_WIN32_WINDOWS == os.dwPlatformId &&
-	    os.dwMajorVersion == 4 &&
-	    os.dwMinorVersion == 10);
-}
-
-static void *
-_cairo_win32_device_get_alpha_blend (cairo_win32_device_t *device)
-{
-    void *func = NULL;
-
-    if (is_win98 ())
-	return NULL;
-
-    device->msimg32_dll = LoadLibraryW (L"msimg32");
-    if (device->msimg32_dll)
-	func = GetProcAddress (device->msimg32_dll, "AlphaBlend");
-
-    return func;
-}
-
 cairo_device_t *
 _cairo_win32_device_get (void)
 {
@@ -134,16 +84,13 @@ _cairo_win32_device_get (void)
     if (__cairo_win32_device)
 	return cairo_device_reference (__cairo_win32_device);
 
-    device = malloc (sizeof (*device));
+    device = _cairo_calloc (sizeof (*device));
 
     _cairo_device_init (&device->base, &_cairo_win32_device_backend);
 
     device->compositor = _cairo_win32_gdi_compositor_get ();
 
-    device->msimg32_dll = NULL;
-    device->alpha_blend = _cairo_win32_device_get_alpha_blend (device);
-
-    if (_cairo_atomic_ptr_cmpxchg ((void **)&__cairo_win32_device, NULL, device))
+    if (_cairo_atomic_ptr_cmpxchg ((cairo_atomic_intptr_t *)&__cairo_win32_device, NULL, device))
 	return cairo_device_reference(&device->base);
 
     _cairo_win32_device_destroy (device);
@@ -151,20 +98,35 @@ _cairo_win32_device_get (void)
 }
 
 unsigned
-_cairo_win32_flags_for_dc (HDC dc)
+_cairo_win32_flags_for_dc (HDC dc, cairo_format_t format)
 {
     uint32_t flags = 0;
-    int cap;
+    cairo_bool_t is_display = GetDeviceCaps(dc, TECHNOLOGY) == DT_RASDISPLAY;
 
-    cap = GetDeviceCaps(dc, RASTERCAPS);
-    if (cap & RC_BITBLT)
-	flags |= CAIRO_WIN32_SURFACE_CAN_BITBLT;
-    if (cap & RC_STRETCHBLT)
-	flags |= CAIRO_WIN32_SURFACE_CAN_STRETCHBLT;
-    if (cap & RC_STRETCHDIB)
-	flags |= CAIRO_WIN32_SURFACE_CAN_STRETCHDIB;
+    if (format == CAIRO_FORMAT_RGB24 || format == CAIRO_FORMAT_ARGB32)
+    {
+	int cap = GetDeviceCaps(dc, RASTERCAPS);
+	if (cap & RC_BITBLT)
+	    flags |= CAIRO_WIN32_SURFACE_CAN_BITBLT;
+	if (!is_display && GetDeviceCaps(dc, SHADEBLENDCAPS) != SB_NONE)
+	    flags |= CAIRO_WIN32_SURFACE_CAN_ALPHABLEND;
 
-    if (GetDeviceCaps(dc, TECHNOLOGY) == DT_RASDISPLAY) {
+	/* ARGB32 available operations are a strict subset of RGB24
+	 * available operations. This is because the same GDI functions
+	 * can be used but most of them always reset alpha channel to 0
+	 * which is bad for ARGB32.
+	 */
+	if (format == CAIRO_FORMAT_RGB24)
+	{
+	    flags |= CAIRO_WIN32_SURFACE_CAN_RGB_BRUSH;
+	    if (cap & RC_STRETCHBLT)
+		flags |= CAIRO_WIN32_SURFACE_CAN_STRETCHBLT;
+	    if (cap & RC_STRETCHDIB)
+		flags |= CAIRO_WIN32_SURFACE_CAN_STRETCHDIB;
+	}
+    }
+
+    if (is_display) {
 	flags |= CAIRO_WIN32_SURFACE_IS_DISPLAY;
 
 	/* These will always be possible, but the actual GetDeviceCaps
@@ -179,10 +141,6 @@ _cairo_win32_flags_for_dc (HDC dc)
 	flags |= CAIRO_WIN32_SURFACE_CAN_STRETCHBLT;
 	flags |= CAIRO_WIN32_SURFACE_CAN_STRETCHDIB;
 #endif
-    } else {
-	cap = GetDeviceCaps(dc, SHADEBLENDCAPS);
-	if (cap != SB_NONE)
-	    flags |= CAIRO_WIN32_SURFACE_CAN_ALPHABLEND;
     }
 
     return flags;

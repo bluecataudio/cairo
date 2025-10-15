@@ -35,12 +35,11 @@
 #ifndef CAIRO_SCRIPT_PRIVATE_H
 #define CAIRO_SCRIPT_PRIVATE_H
 
-#ifdef HAVE_CONFIG_H
 #include "config.h"
-#endif
 
 #include "cairo-script-interpreter.h"
 
+#include <stddef.h>
 #include <setjmp.h>
 
 #ifdef _MSC_VER
@@ -99,28 +98,6 @@
 #endif
 
 
-#if __GNUC__ >= 3 && defined(__ELF__) && !defined(__sun)
-# define slim_hidden_proto(name)		slim_hidden_proto1(name, slim_hidden_int_name(name)) csi_private
-# define slim_hidden_proto_no_warn(name)	slim_hidden_proto1(name, slim_hidden_int_name(name)) csi_private_no_warn
-# define slim_hidden_def(name)			slim_hidden_def1(name, slim_hidden_int_name(name))
-# define slim_hidden_int_name(name) INT_##name
-# define slim_hidden_proto1(name, internal)				\
-  extern __typeof (name) name						\
-	__asm__ (slim_hidden_asmname (internal))
-# define slim_hidden_def1(name, internal)				\
-  extern __typeof (name) EXT_##name __asm__(slim_hidden_asmname(name))	\
-	__attribute__((__alias__(slim_hidden_asmname(internal))))
-# define slim_hidden_ulp		slim_hidden_ulp1(__USER_LABEL_PREFIX__)
-# define slim_hidden_ulp1(x)		slim_hidden_ulp2(x)
-# define slim_hidden_ulp2(x)		#x
-# define slim_hidden_asmname(name)	slim_hidden_asmname1(name)
-# define slim_hidden_asmname1(name)	slim_hidden_ulp #name
-#else
-# define slim_hidden_proto(name)		int _csi_dummy_prototype(void)
-# define slim_hidden_proto_no_warn(name)	int _csi_dummy_prototype(void)
-# define slim_hidden_def(name)			int _csi_dummy_prototype(void)
-#endif
-
 #if __GNUC__ >= 3
 #define csi_pure __attribute__((pure))
 #define csi_const __attribute__((const))
@@ -147,10 +124,6 @@
 #endif
 
 #ifdef __GNUC__
-#ifndef offsetof
-#define offsetof(type, member) \
-    ((char *) &((type *) 0)->member - (char *) 0)
-#endif
 #define csi_container_of(ptr, type, member) ({ \
     const typeof(((type *) 0)->member) *mptr__ = (ptr); \
     (type *) ((char *) mptr__ - offsetof (type, member)); \
@@ -160,7 +133,6 @@
     (type *)((char *) (ptr) - (char *) &((type *)0)->member)
 #endif
 
-/* slim_internal.h */
 #if (__GNUC__ > 3 || (__GNUC__ == 3 && __GNUC_MINOR__ >= 3)) && defined(__ELF__) && !defined(__sun)
 #define csi_private_no_warn	__attribute__((__visibility__("hidden")))
 #elif defined(__SUNPRO_C) && (__SUNPRO_C >= 0x550)
@@ -219,6 +191,16 @@ typedef enum _csi_status {
     CSI_STATUS_INVALID_CLUSTERS = CAIRO_STATUS_INVALID_CLUSTERS,
     CSI_STATUS_INVALID_SLANT = CAIRO_STATUS_INVALID_SLANT,
     CSI_STATUS_INVALID_WEIGHT = CAIRO_STATUS_INVALID_WEIGHT,
+    CSI_STATUS_INVALID_SIZE = CAIRO_STATUS_INVALID_SIZE,
+    CSI_STATUS_USER_FONT_NOT_IMPLEMENTED = CAIRO_STATUS_USER_FONT_NOT_IMPLEMENTED,
+    CSI_STATUS_DEVICE_TYPE_MISMATCH = CAIRO_STATUS_DEVICE_TYPE_MISMATCH,
+    CSI_STATUS_DEVICE_ERROR = CAIRO_STATUS_DEVICE_ERROR,
+    CSI_STATUS_INVALID_MESH_CONSTRUCTION = CAIRO_STATUS_INVALID_MESH_CONSTRUCTION,
+    CSI_STATUS_DEVICE_FINISHED = CAIRO_STATUS_DEVICE_FINISHED,
+    CSI_STATUS_JBIG2_GLOBAL_MISSING = CAIRO_STATUS_JBIG2_GLOBAL_MISSING,
+    CSI_STATUS_PNG_ERROR = CAIRO_STATUS_PNG_ERROR,
+    CSI_STATUS_FREETYPE_ERROR = CAIRO_STATUS_FREETYPE_ERROR,
+    CSI_STATUS_WIN32_GDI_ERROR = CAIRO_STATUS_WIN32_GDI_ERROR,
 
     /* cairo-script-interpreter specific errors */
 
@@ -276,7 +258,7 @@ typedef cairo_bool_t csi_boolean_t;
 typedef csi_status_t (*csi_operator_t) (csi_t *);
 typedef float csi_real_t;
 typedef long csi_integer_t;
-typedef long csi_name_t;
+typedef intptr_t csi_name_t;
 typedef struct _csi_array csi_array_t;
 typedef struct _csi_buffer csi_buffer_t;
 typedef struct _csi_compound_object csi_compound_object_t;
@@ -906,16 +888,9 @@ csi_number_get_value (const csi_object_t *obj)
     }
 }
 
-static inline csi_status_t
+csi_private csi_status_t
 _csi_stack_push (csi_t *ctx, csi_stack_t *stack,
-		 const csi_object_t *obj)
-{
-    if (_csi_unlikely (stack->len == stack->size))
-	return _csi_stack_push_internal (ctx, stack, obj);
-
-    stack->objects[stack->len++] = *obj;
-    return CSI_STATUS_SUCCESS;
-}
+		 const csi_object_t *obj);
 
 static inline csi_boolean_t
 _csi_check_ostack (csi_t *ctx, csi_integer_t count)
@@ -987,8 +962,5 @@ _csi_push_ostack_real (csi_t *ctx, csi_real_t v)
     obj.datum.real = v;
     return _csi_stack_push (ctx, &ctx->ostack, &obj);
 }
-
-slim_hidden_proto_no_warn (cairo_script_interpreter_destroy);
-slim_hidden_proto_no_warn (cairo_script_interpreter_reference);
 
 #endif /* CAIRO_SCRIPT_PRIVATE_H */

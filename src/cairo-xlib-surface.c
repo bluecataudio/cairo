@@ -47,6 +47,15 @@
 
 #include "cairoint.h"
 
+/**
+ * CAIRO_HAS_XLIB_XCB_FUNCTIONS:
+ *
+ * Defined if Cairo has support for XCB integration with Xlib.
+ * This macro can be used to conditionally compile backend-specific code.
+ *
+ * Since: 1.10
+ **/
+
 #if !CAIRO_HAS_XLIB_XCB_FUNCTIONS
 
 #include "cairo-xlib-private.h"
@@ -71,8 +80,6 @@
 #include <X11/extensions/XShm.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
-
-#define XLIB_COORD_MAX 32767
 
 #define DEBUG 0
 
@@ -188,12 +195,6 @@ _cairo_surface_is_xlib (cairo_surface_t *surface);
  */
 
 #define CAIRO_ASSUME_PIXMAP	20
-
-static const XTransform identity = { {
-    { 1 << 16, 0x00000, 0x00000 },
-    { 0x00000, 1 << 16, 0x00000 },
-    { 0x00000, 0x00000, 1 << 16 },
-} };
 
 static Visual *
 _visual_for_xrender_format(Screen *screen,
@@ -992,7 +993,7 @@ _get_image_surface (cairo_xlib_surface_t    *surface,
 		in_pixel = XGetPixel (ximage, x, y);
 		if (visual_info == NULL) {
 		    out_pixel = (
-			_field_to_8 (in_pixel & a_mask, a_width, a_shift) << 24 |
+			(uint32_t)_field_to_8 (in_pixel & a_mask, a_width, a_shift) << 24 |
 			_field_to_8_undither (in_pixel & r_mask, r_width, r_shift, dither_adjustment) << 16 |
 			_field_to_8_undither (in_pixel & g_mask, g_width, g_shift, dither_adjustment) << 8 |
 			_field_to_8_undither (in_pixel & b_mask, b_width, b_shift, dither_adjustment));
@@ -1772,7 +1773,7 @@ found:
 	;
     }
 
-    surface = malloc (sizeof (cairo_xlib_surface_t));
+    surface = _cairo_calloc (sizeof (cairo_xlib_surface_t));
     if (unlikely (surface == NULL))
 	return _cairo_surface_create_in_error (_cairo_error (CAIRO_STATUS_NO_MEMORY));
 
@@ -1800,7 +1801,8 @@ found:
     _cairo_surface_init (&surface->base,
 			 &cairo_xlib_surface_backend,
 			 screen->device,
-			 _xrender_format_to_content (xrender_format));
+			 _xrender_format_to_content (xrender_format),
+			 FALSE); /* is_vector */
 
     surface->screen = screen;
     surface->compositor = display->compositor;
@@ -1891,7 +1893,7 @@ static cairo_bool_t valid_size (int width, int height)
     /* Note: the minimum surface size allowed in the X protocol is 1x1.
      * However, as we historically did not check the minimum size we
      * allowed applications to lie and set the correct size later (one hopes).
-     * To preserve compatability we must allow applications to use
+     * To preserve compatibility we must allow applications to use
      * 0x0 surfaces.
      */
     return (width  >= 0 && width  <= XLIB_COORD_MAX &&

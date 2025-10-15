@@ -1,5 +1,0 @@
---- cairo-quartz-image-surface.c	
-+++ cairo-quartz-image-surface.c	
-@@ -385,0 +386,2 @@ cairo_quartz_image_surface_create (cairo_surface_t
-+    // reference image surface - will be released in surface_destroy 
-+    cairo_surface_reference (surface);

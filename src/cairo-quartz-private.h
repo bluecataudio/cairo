@@ -44,18 +44,22 @@
 #include "cairo-quartz.h"
 #include "cairo-surface-clipper-private.h"
 
-#ifdef CGFLOAT_DEFINED
-typedef CGFloat cairo_quartz_float_t;
-#else
-typedef float cairo_quartz_float_t;
+#ifndef CGFLOAT_DEFINED
+/* On 10.4, Quartz APIs used float instead of CGFloat */
+typedef float CGFloat;
 #endif
+
+typedef CGFloat cairo_quartz_float_t;
 
 typedef enum {
     DO_DIRECT,
     DO_SHADING,
     DO_IMAGE,
-    DO_TILED_IMAGE
+    DO_LAYER
 } cairo_quartz_action_t;
+
+/* define CTFontRef for pre-10.5 SDKs */
+typedef const struct __CTFont *CTFontRef;
 
 typedef struct cairo_quartz_surface {
     cairo_surface_t base;
@@ -63,22 +67,23 @@ typedef struct cairo_quartz_surface {
     CGContextRef cgContext;
     CGAffineTransform cgContextBaseCTM;
 
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 10600
     void *imageData;
-    cairo_surface_t *imageSurfaceEquiv;
+#endif
 
     cairo_surface_clipper_t clipper;
     cairo_rectangle_int_t extents;
     cairo_rectangle_int_t virtual_extents;
+    CGLayerRef cgLayer;
+    CGColorSpaceRef cgColorSpace;
 } cairo_quartz_surface_t;
 
 typedef struct cairo_quartz_image_surface {
     cairo_surface_t base;
 
     int width, height;
-
-    CGImageRef image;
+    CGContextRef cgContext;
     cairo_image_surface_t *imageSurface;
-    bool noImageCopy;
 } cairo_quartz_image_surface_t;
 
 cairo_private cairo_bool_t
@@ -87,19 +92,27 @@ _cairo_quartz_verify_surface_size(int width, int height);
 cairo_private cairo_bool_t
 _cairo_surface_is_quartz (const cairo_surface_t *surface);
 
-cairo_private CGImageRef
-CairoQuartzCreateCGImage (cairo_format_t format,
-			      unsigned int width,
-			      unsigned int height,
-			      unsigned int stride,
-			      void *data,
-			      cairo_bool_t interpolate,
-			      CGColorSpaceRef colorSpaceOverride,
-			      CGDataProviderReleaseDataCallback releaseCallback,
-			      void *releaseInfo);
+cairo_private cairo_bool_t
+_cairo_surface_is_quartz_image (const cairo_surface_t *surface);
+cairo_private cairo_bool_t
+_cairo_quartz_image_surface_is_zero (const cairo_quartz_image_surface_t *surface);
+
+cairo_private CGColorSpaceRef
+_cairo_quartz_create_color_space (CGContextRef context);
+cairo_private CGContextRef
+_cairo_quartz_image_surface_get_cg_context (cairo_surface_t *surface);
 
 cairo_private CGFontRef
 _cairo_quartz_scaled_font_get_cg_font_ref (cairo_scaled_font_t *sfont);
+cairo_private CTFontRef
+_cairo_quartz_scaled_font_get_ct_font (cairo_scaled_font_t *sfont);
+cairo_private cairo_font_face_t*
+_cairo_quartz_font_face_create_for_ctfont (CTFontRef ctFont);
+cairo_private void
+_cairo_quartz_set_antialiasing (CGContextRef context, cairo_antialias_t antialias);
+
+cairo_status_t _cairo_quartz_surface_to_png (cairo_surface_t *abstract_surface, const char *dest);
+cairo_private void _cairo_quartz_image_to_png (CGImageRef, const char *dest);
 
 #else
 

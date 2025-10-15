@@ -1,0 +1,11 @@
+===================================================================
+--- cairo-quartz-surface.c	
++++ cairo-quartz-surface.c	(fix)
+@@ -513,0 +514 @@ _cairo_cgcontext_set_cairo_operator (CGContextRef
++     * Mod: fallback only for bitmap context, or no drawing will happen at all
+@@ -515 +516 @@ _cairo_cgcontext_set_cairo_operator (CGContextRef
+-    if (op == CAIRO_OPERATOR_SATURATE ||
++    if (op == CAIRO_OPERATOR_SATURATE || (_cairo_quartz_is_cgcontext_bitmap_context(context) && (
+@@ -519 +520 @@ _cairo_cgcontext_set_cairo_operator (CGContextRef
+-	op == CAIRO_OPERATOR_COLOR_BURN)
++	op == CAIRO_OPERATOR_COLOR_BURN)))

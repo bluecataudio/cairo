@@ -1,9 +1,9 @@
-<?xml version='1.0' encoding='UTF-8'?> 
+<?xml version='1.0' encoding='UTF-8'?>
 <!DOCTYPE book PUBLIC "-//OASIS//DTD DocBook XML V4.2//EN"
-                "http://www.oasis-open.org/docbook/xml/4.2/docbookx.dtd" [
+		"http://www.oasis-open.org/docbook/xml/4.2/docbookx.dtd" [
 <!ENTITY version SYSTEM "version.xml">
 ]>
-<book lang="en" id="cairo" xmlns:xi="http://www.w3.org/2003/XInclude"> 
+<book lang="en" id="cairo" xmlns:xi="http://www.w3.org/2003/XInclude">
 <title>Cairo: A Vector Graphics Library</title>
   <bookinfo>
     <title>Cairo: A Vector Graphics Library</title>
@@ -18,6 +18,7 @@
     <xi:include href="xml/cairo-transforms.xml"/>
     <xi:include href="xml/cairo-text.xml"/>
     <xi:include href="xml/cairo-raster-source.xml"/>
+    <xi:include href="xml/cairo-tag.xml"/>
   </chapter>
   <chapter id="cairo-fonts">
     <title>Fonts</title>
@@ -26,6 +27,7 @@
     <xi:include href="xml/cairo-font-options.xml"/>
     <xi:include href="xml/cairo-ft.xml"/>
     <xi:include href="xml/cairo-win32-fonts.xml"/>
+    <xi:include href="xml/cairo-dwrite-fonts.xml"/>
     <xi:include href="xml/cairo-quartz-fonts.xml"/>
     <xi:include href="xml/cairo-user-fonts.xml"/>
   </chapter>
@@ -39,14 +41,14 @@
     <xi:include href="xml/cairo-ps.xml"/>
     <xi:include href="xml/cairo-recording.xml"/>
     <xi:include href="xml/cairo-win32.xml"/>
-    <!--xi:include href="xml/cairo-beos.xml"/-->
     <xi:include href="xml/cairo-svg.xml"/>
     <xi:include href="xml/cairo-quartz.xml" />
-    <!--xi:include href="xml/cairo-quartz-image.xml"/-->
     <xi:include href="xml/cairo-xcb.xml"/>
     <xi:include href="xml/cairo-xlib.xml"/>
     <xi:include href="xml/cairo-xlib-xrender.xml"/>
     <xi:include href="xml/cairo-script.xml"/>
+    <xi:include href="xml/cairo-surface-observer.xml"/>
+    <xi:include href="xml/cairo-tee.xml"/>
   </chapter>
   <chapter id="cairo-support">
     <title>Utilities</title>
@@ -55,29 +57,53 @@
     <xi:include href="xml/cairo-version.xml"/>
     <xi:include href="xml/cairo-types.xml"/>
   </chapter>
-  <index id="index-all">
+  <chapter id="api-index-all">
     <title>Index</title>
-  </index>
-  <index id="index-1.2" role="1.2">
+    <xi:include href="xml/api-index-full.xml"/>
+  </chapter>
+  <!--index id="deprecated-api-index">
+    <title>Index of deprecated symbols</title>
+    <xi:include href="xml/api-index-deprecated.xml"/>
+  </index-->
+  <chapter id="api-index-1-0">
+    <title>Index of new symbols in 1.0</title>
+    <xi:include href="xml/api-index-1.0.xml"/>
+  </chapter>
+  <chapter id="api-index-1-2">
     <title>Index of new symbols in 1.2</title>
-  </index>
-  <index id="index-1.4" role="1.4">
+    <xi:include href="xml/api-index-1.2.xml"/>
+  </chapter>
+  <chapter id="api-index-1-4">
     <title>Index of new symbols in 1.4</title>
-  </index>
-  <index id="index-1.6" role="1.6">
+    <xi:include href="xml/api-index-1.4.xml"/>
+  </chapter>
+  <chapter id="api-index-1-6">
     <title>Index of new symbols in 1.6</title>
-  </index>
-  <index id="index-1.8" role="1.8">
+    <xi:include href="xml/api-index-1.6.xml"/>
+  </chapter>
+  <chapter id="api-index-1-8">
     <title>Index of new symbols in 1.8</title>
-  </index>
-  <index id="index-1.10" role="1.10">
+    <xi:include href="xml/api-index-1.8.xml"/>
+  </chapter>
+  <chapter id="api-index-1-10">
     <title>Index of new symbols in 1.10</title>
-  </index>
-  <index id="index-1.12" role="1.12">
+    <xi:include href="xml/api-index-1.10.xml"/>
+  </chapter>
+  <chapter id="api-index-1-12">
     <title>Index of new symbols in 1.12</title>
-  </index>
-  <index id="index-1.14" role="1.14">
+    <xi:include href="xml/api-index-1.12.xml"/>
+  </chapter>
+  <chapter id="api-index-1-14">
     <title>Index of new symbols in 1.14</title>
-  </index>
-  <xi:include href="language-bindings.xml"/>
+    <xi:include href="xml/api-index-1.14.xml"/>
+  </chapter>
+  <chapter id="api-index-1-16">
+    <title>Index of new symbols in 1.16</title>
+    <xi:include href="xml/api-index-1.16.xml"/>
+  </chapter>
+  <chapter id="api-index-1-18">
+    <title>Index of new symbols in 1.18</title>
+    <xi:include href="xml/api-index-1.18.xml"/>
+  </chapter>
+  <xi:include href="xml/language-bindings.xml"/>
 </book>
